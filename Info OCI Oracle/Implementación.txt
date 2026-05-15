@@ -1,0 +1,65 @@
+# Especificación Técnica: Arquitectura de Almacenamiento y Seguridad de Archivos (CRM)
+
+Este documento amplía la Documentación de Arquitectura Técnica del CRM, definiendo el flujo de subida, procesamiento, almacenamiento y entrega de archivos (imágenes de perfil y documentos). Se mantiene la filosofía de alta calidad, ligereza y control total.
+
+## 1. Topología de la Solución
+
+Se prescindirá de CDNs externos en favor de un enfoque nativo utilizandoOracle Cloud Infrastructure (OCI) Object Storage (Capa Always Free). Dado que el frontend es una SPA optimizada para uso interno, la latencia de red será insignificante sirviendo los archivos directamente desde el proveedor de nube.
+
+### 1.1. Almacenamiento (OCI Object Storage)
+
+Se deberán provisionar dos (2) Buckets en OCI:
+
+Bucket Público (`crm-avatars-public`): Uso exclusivo para fotos de perfil. Los archivos serán de acceso público por URL directa, pero protegidos por ofuscación de nombre (UUIDs).
+Bucket Privado (`crm-docs-private`): Uso para PDFs y documentos. Sin acceso público. La descarga se realizará estrictamente mediantePARs (Pre-Authenticated Requests) generadas dinámicamente por el backend con tiempo de expiración corto (ej. 5 minutos).
+
+## 2. Especificaciones de Infraestructura y Contenedores
+
+Aprovechando el despliegue centralizado en Oracle Cloud (ARM Ampere) con Docker, se deben añadir/modificar los siguientes contenedores:
+
+1. Microservicio de Media (`mod-media`): Un nuevo microservicio independiente construido sobre el framework Hono (Node.js) Typescript.
+
+2. Motor Antivirus (`clamav-scanner`): Un contenedor oficial de ClamAV expuesto únicamente a la red interna de Docker. No debe tener puertos expuestos al exterior.
+
+## 3. Flujo de Subida y Seguridad (Defensa en Profundidad)
+
+### Fase 3.1: API Gateway (KrakenD)
+
+KrakenD seguirá siendo el único punto de entrada. Para el endpoint de subida de archivos, el equipo debe configurar:
+Límite de Tamaño: Configurar un límite estricto de 25MB en el `max_body_size` del endpoint. Peticiones mayores deben ser abortadas en esta capa.
+Autenticación: Validar el JWT con el modulo de auth e inyectar el `user_id` en la cabecera `X-User-ID` hacia el microservicio.
+
+
+### Fase 3.2: Backend (Microservicio Hono `mod-media`)
+
+Este microservicio ejecutará el pipeline de seguridad en el siguiente orden estricto:
+
+1.Validación de Magic Numbers: El equipo debe ignorar el `Content-Type` del cliente y leer los primerosbytes del buffer en memoria para determinar el tipo MIME real.
+Bloqueo estricto: Rechazar cualquier archivo que resulte ser ejecutable, `.svg` o `.html` (prevención de XSS).
+
+2.Bifurcación por Tipo de Archivo:
+Si es una Imagen (Avatar): Pasar el buffer por la librería de procesamiento (ej. `sharp`).
+Generar 3 tamaños: `512px`, `256px` (mediana) y `64px` (pequeña).
+Forzar la conversión a formato WebP. Nota de seguridad: Este proceso destruye los metadatos EXIF y desactiva cualquier payload esteganográfico incrustado en la imagen original.
+
+Si es un Documento:
+Enviar el buffer de datos a través de la red interna de Docker hacia el contenedor `clamav-scanner` usando una librería cliente (ej. `clamscan`).
+Si ClamAV retorna `OK`, continuar. Si retorna `INFECTED`, descartar el buffer de la memoria de Node/Bun inmediatamente y registrar un evento de seguridad.
+
+3.Subida a OCI: Utilizar el SDK de OCI para subir el archivo limpio/procesado al Bucket correspondiente.
+4. Persistencia: Guardar las referencias lógicas (rutas de OCI) en el esquema PostgreSQL correspondiente utilizando Drizzle ORM.
+
+## 4. Flujo de Entrega (Download) y Frontend
+
+El objetivo es descargar la carga de red del servidor Ampere y de KrakenD.
+
+### Visualización de Avatares
+
+Backend: Al solicitar los datos de un usuario, el backend devuelve el JSON con las URLs completas de OCI (ej. `https://objectstorage.../crm-avatars-public/user_123_sm.webp`).
+Frontend (React): Renderizar la imagen usando directamente la URL de OCI. El navegador almacenará esto en caché automáticamente.
+
+### Descarga/Visualización de documentos
+
+Backend: El frontend solicita acceso a un documento. El microservicio Hono genera una URL Pre-firmada (PAR) a través del SDK de Oracle apuntando al archivo en el Bucket Privado y devuelve esta URL en el JSON.
+Frontend (React): Redirigir al usuario o abrir la URL generada en una nueva pestaña.
+Headers: Asegurar que en OCI el PDF tenga los headers correctos (`Content-Type: application/pdf` o lo que corresponda). Si el archivo no debe visualizarse en el navegador, configurar el PAR para que fuerce la descarga (`Content-Disposition: attachment`).

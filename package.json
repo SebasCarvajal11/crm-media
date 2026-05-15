@@ -1,0 +1,35 @@
+{
+  "name": "mod-media",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "tsx src/server.ts",
+    "oci:verify": "tsx src/scripts/verify-oci.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "preinstall": "npx only-allow pnpm"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.14",
+    "clamscan": "^2.4.0",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "file-type": "^20.5.0",
+    "hono": "^4.12.18",
+    "oci-common": "^2.118.1",
+    "oci-objectstorage": "^2.118.1",
+    "pg": "^8.20.0",
+    "sharp": "^0.34.4",
+    "uuid": "^11.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.17",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.3"
+  }
+}
