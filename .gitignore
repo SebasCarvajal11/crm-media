@@ -1,13 +1,27 @@
 node_modules/
 dist/
+coverage/
+.pnpm-store/
 
 .env
 .env.local
 .env.*.local
 
 *.log
+*.out
+*.err
+*.pid
 *.pem
 *.key
+oci.config
+
+drizzle/
 
 .DS_Store
 Thumbs.db
+.idea/
+.vscode/
+*.tsbuildinfo
+*.tmp
+*.temp
+*.orig

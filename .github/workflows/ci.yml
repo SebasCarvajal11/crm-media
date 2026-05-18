@@ -30,8 +30,11 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Build production image
+        run: docker build -t crm-media:ci .
+
   oci-verify:
-    if: ${{ secrets.OCI_CONFIG_FILE_CONTENT != '' && secrets.OCI_REGION != '' && secrets.OCI_NAMESPACE != '' && secrets.OCI_BUCKET_AVATARS_PUBLIC != '' && secrets.OCI_BUCKET_DOCS_PRIVATE != '' }}
+    if: ${{ secrets.OCI_CONFIG_FILE_CONTENT != '' && secrets.OCI_PRIVATE_KEY_PEM != '' && secrets.OCI_REGION != '' && secrets.OCI_NAMESPACE != '' && secrets.OCI_BUCKET_AVATARS_PUBLIC != '' && secrets.OCI_BUCKET_DOCS_PRIVATE != '' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -56,9 +59,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/oci"
-          printf '%s\n' "${OCI_CONFIG_FILE_CONTENT}" > "$RUNNER_TEMP/oci/oci.config"
+          printf '%s\n' "${OCI_PRIVATE_KEY_PEM}" > "$RUNNER_TEMP/oci/oci_api_key.pem"
+          printf '%s\n' "${OCI_CONFIG_FILE_CONTENT}" | sed "s|^key_file=.*$|key_file=$RUNNER_TEMP/oci/oci_api_key.pem|" > "$RUNNER_TEMP/oci/oci.config"
         env:
           OCI_CONFIG_FILE_CONTENT: ${{ secrets.OCI_CONFIG_FILE_CONTENT }}
+          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
 
       - name: Verify OCI access
         env:

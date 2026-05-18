@@ -1,49 +1,47 @@
-## CRM Media
+# CRM Media
 
-Servicio de media de CIMA CRM para avatares y documentos.
+`crm-media` is the CIMA CRM media service. It owns avatar storage, private document storage, antivirus validation, and OCI Object Storage integration.
 
-## Desarrollo
+## Scope
+
+- Avatar upload and retrieval
+- Private document upload confirmation and access URL generation
+- File validation and antivirus scanning
+- Media metadata persistence in PostgreSQL
+
+This service depends on PostgreSQL, OCI Object Storage, ClamAV, and `crm-collab` for project-file authorization checks.
+
+## Local Development
 
 ```bash
 pnpm install
+pnpm db:push
 pnpm dev
-pnpm oci:verify
 ```
+
+Useful commands:
+
+- `pnpm build`
+- `pnpm oci:verify`
+- `pnpm db:generate`
 
 Health check: `http://localhost:3002/health`
 
-## Dependencias externas
+## Environment
 
-Este repo depende de:
+Start from [.env.example](D:\BACKUP CELULAR OLIMPO\crm-media\.env.example).
 
-- Postgres compartido
-- OCI Object Storage
-- ClamAV
-- `crm-collab` para validar acceso a documentos privados
-- `GATEWAY_TRUST_SECRET` compartido cuando se valida acceso interno
+Required runtime areas:
 
-## Variables de entorno
-
-Parte de `.env.example` y define al menos:
-
-- `DATABASE_URL`
-- `PORT`
-- `OCI_CONFIG_FILE_PATH`
-- `OCI_CONFIG_PROFILE`
-- `OCI_REGION`
-- `OCI_NAMESPACE`
-- `OCI_BUCKET_AVATARS_PUBLIC`
-- `OCI_BUCKET_DOCS_PRIVATE`
-- `CLAMAV_HOST`
-- `CLAMAV_PORT`
-- `CLAMAV_SCAN_TIMEOUT_MS`
-- `DOC_PAR_TTL_SECONDS`
-- `OCI_PAR_PRUNE_MAX`
-- `AVATAR_VERSIONS_TO_KEEP`
+- database connectivity
+- OCI config path, region, namespace, and bucket names
+- ClamAV host and port
 - `MOD_COLLAB_URL`
 - `GATEWAY_TRUST_SECRET`
 
-## Endpoints relevantes
+Real OCI credentials must stay outside the repository. Use [oci.config.example](D:\BACKUP CELULAR OLIMPO\crm-media\oci.config.example) only as a shape reference and point `OCI_CONFIG_FILE_PATH` to a private local file.
+
+## API Surface
 
 - `POST /media/avatars`
 - `GET /media/avatars/current`
@@ -53,19 +51,10 @@ Parte de `.env.example` y define al menos:
 - `GET /media/documents/access`
 - `DELETE /media/documents`
 
-## Verificacion operativa minima
+## Verification
+
+Minimum repo validation:
 
 1. `pnpm build`
-2. `pnpm oci:verify`
-3. Arranque local con `.env` real
-4. Flujo de documento:
-   - generar `upload-url`
-   - subir archivo directo a OCI
-   - confirmar upload
-   - pedir URL de acceso
-
-## Configuracion OCI segura
-
-- No subas `oci.config`, llaves privadas `.pem` ni credenciales al repositorio.
-- Usa un archivo local fuera del repo y apunta `OCI_CONFIG_FILE_PATH` a esa ruta en tu `.env`.
-- Toma como referencia `Info OCI Oracle/README.md` y `Info OCI Oracle/oci.config.example`.
+2. `pnpm db:push`
+3. `pnpm oci:verify`

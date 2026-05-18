@@ -1,8 +1,8 @@
-import { pgSchema, uuid, text, timestamp, integer, bigint, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgSchema, uuid, text, timestamp, integer, bigint, uniqueIndex } from "drizzle-orm/pg-core";
 import { v7 as uuidv7 } from "uuid";
 
-const mediaSchema = pgSchema("schema_media");
-export const mediaKindEnum = pgEnum("media_kind", ["avatar", "document"]);
+export const mediaSchema = pgSchema("schema_media");
+export const mediaKindEnum = mediaSchema.enum("media_kind", ["avatar", "document"]);
 
 export const mediaAssets = mediaSchema.table("media_assets", {
   id: uuid("id").$defaultFn(() => uuidv7()).primaryKey(),

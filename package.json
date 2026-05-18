@@ -1,14 +1,15 @@
 {
   "name": "crm-media",
   "type": "module",
+  "packageManager": "pnpm@11.1.1",
+  "description": "Media storage and access service for the CIMA CRM multi-repo platform.",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "tsx src/server.ts",
     "oci:verify": "tsx src/scripts/verify-oci.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
+    "db:push": "tsx src/scripts/ensure-db-schema.ts",
     "preinstall": "pnpm dlx only-allow pnpm"
   },
   "repository": {
