@@ -34,48 +34,70 @@ jobs:
         run: docker build -t crm-media:ci .
 
   oci-verify:
-    if: ${{ secrets.OCI_CONFIG_FILE_CONTENT != '' && secrets.OCI_PRIVATE_KEY_PEM != '' && secrets.OCI_REGION != '' && secrets.OCI_NAMESPACE != '' && secrets.OCI_BUCKET_AVATARS_PUBLIC != '' && secrets.OCI_BUCKET_DOCS_PRIVATE != '' }}
     runs-on: ubuntu-latest
+    env:
+      OCI_CONFIG_FILE_CONTENT: ${{ secrets.OCI_CONFIG_FILE_CONTENT }}
+      OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
+      OCI_REGION: ${{ secrets.OCI_REGION }}
+      OCI_NAMESPACE: ${{ secrets.OCI_NAMESPACE }}
+      OCI_BUCKET_AVATARS_PUBLIC: ${{ secrets.OCI_BUCKET_AVATARS_PUBLIC }}
+      OCI_BUCKET_DOCS_PRIVATE: ${{ secrets.OCI_BUCKET_DOCS_PRIVATE }}
 
     steps:
+      - name: Check OCI secret readiness
+        id: guard
+        shell: bash
+        run: |
+          missing=0
+          for key in OCI_CONFIG_FILE_CONTENT OCI_PRIVATE_KEY_PEM OCI_REGION OCI_NAMESPACE OCI_BUCKET_AVATARS_PUBLIC OCI_BUCKET_DOCS_PRIVATE; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "Missing secret: $key"
+              missing=1
+            fi
+          done
+          if [[ "$missing" -eq 1 ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         uses: actions/checkout@v4
 
       - name: Setup pnpm
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         uses: pnpm/action-setup@v4
         with:
           version: 11.1.1
 
       - name: Setup Node.js
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
 
       - name: Install dependencies
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         run: pnpm install --frozen-lockfile
 
       - name: Write OCI config
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/oci"
           printf '%s\n' "${OCI_PRIVATE_KEY_PEM}" > "$RUNNER_TEMP/oci/oci_api_key.pem"
           printf '%s\n' "${OCI_CONFIG_FILE_CONTENT}" | sed "s|^key_file=.*$|key_file=$RUNNER_TEMP/oci/oci_api_key.pem|" > "$RUNNER_TEMP/oci/oci.config"
-        env:
-          OCI_CONFIG_FILE_CONTENT: ${{ secrets.OCI_CONFIG_FILE_CONTENT }}
-          OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
 
       - name: Verify OCI access
+        if: ${{ steps.guard.outputs.enabled == 'true' }}
         env:
           DATABASE_URL: postgres://unused:unused@127.0.0.1:5432/unused
           PORT: "3002"
           NODE_ENV: test
           OCI_CONFIG_FILE_PATH: ${{ runner.temp }}/oci/oci.config
           OCI_CONFIG_PROFILE: DEFAULT
-          OCI_REGION: ${{ secrets.OCI_REGION }}
-          OCI_NAMESPACE: ${{ secrets.OCI_NAMESPACE }}
-          OCI_BUCKET_AVATARS_PUBLIC: ${{ secrets.OCI_BUCKET_AVATARS_PUBLIC }}
-          OCI_BUCKET_DOCS_PRIVATE: ${{ secrets.OCI_BUCKET_DOCS_PRIVATE }}
           CLAMAV_HOST: 127.0.0.1
           CLAMAV_PORT: "3310"
           CLAMAV_SCAN_TIMEOUT_MS: "90000"
@@ -85,3 +107,7 @@ jobs:
           MOD_COLLAB_URL: http://127.0.0.1:3001
           GATEWAY_TRUST_SECRET: cima-local-gateway-trust-secret-do-not-use-production-2026
         run: pnpm oci:verify
+
+      - name: OCI verify skipped
+        if: ${{ steps.guard.outputs.enabled != 'true' }}
+        run: echo "OCI verification skipped because required production secrets are not configured for this repository."
