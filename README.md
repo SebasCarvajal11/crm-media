@@ -1,20 +1,6 @@
-# mod-media
+## CRM Media
 
-Microservicio de media para CRM: upload de avatares y documentos con validacion por magic numbers, procesamiento de imagenes, escaneo antivirus y almacenamiento en OCI Object Storage.
-
-## Endpoints
-
-- `POST /media/avatars` (multipart `file`)
-  - Respuesta: `{ data: { version, urls: { "64", "256", "512" } } }`
-- `POST /media/documents` (multipart `file`)
-- `GET /media/documents/access?objectKey=...&download=true|false`
-- `GET /health`
-
-## Versionado de avatares
-
-- Cada upload incrementa `avatarVersion` por usuario.
-- Las keys quedan en `avatars/{userId}/v{n}/...`.
-- Se conservan las ultimas `AVATAR_VERSIONS_TO_KEEP` versiones y se limpian versiones antiguas en OCI.
+Servicio de media de CIMA CRM para avatares y documentos.
 
 ## Desarrollo
 
@@ -23,3 +9,63 @@ pnpm install
 pnpm dev
 pnpm oci:verify
 ```
+
+Health check: `http://localhost:3002/health`
+
+## Dependencias externas
+
+Este repo depende de:
+
+- Postgres compartido
+- OCI Object Storage
+- ClamAV
+- `crm-collab` para validar acceso a documentos privados
+- `GATEWAY_TRUST_SECRET` compartido cuando se valida acceso interno
+
+## Variables de entorno
+
+Parte de `.env.example` y define al menos:
+
+- `DATABASE_URL`
+- `PORT`
+- `OCI_CONFIG_FILE_PATH`
+- `OCI_CONFIG_PROFILE`
+- `OCI_REGION`
+- `OCI_NAMESPACE`
+- `OCI_BUCKET_AVATARS_PUBLIC`
+- `OCI_BUCKET_DOCS_PRIVATE`
+- `CLAMAV_HOST`
+- `CLAMAV_PORT`
+- `CLAMAV_SCAN_TIMEOUT_MS`
+- `DOC_PAR_TTL_SECONDS`
+- `OCI_PAR_PRUNE_MAX`
+- `AVATAR_VERSIONS_TO_KEEP`
+- `MOD_COLLAB_URL`
+- `GATEWAY_TRUST_SECRET`
+
+## Endpoints relevantes
+
+- `POST /media/avatars`
+- `GET /media/avatars/current`
+- `GET /media/avatars/users`
+- `POST /media/documents/upload-url`
+- `POST /media/documents/confirm`
+- `GET /media/documents/access`
+- `DELETE /media/documents`
+
+## Verificacion operativa minima
+
+1. `pnpm build`
+2. `pnpm oci:verify`
+3. Arranque local con `.env` real
+4. Flujo de documento:
+   - generar `upload-url`
+   - subir archivo directo a OCI
+   - confirmar upload
+   - pedir URL de acceso
+
+## Configuracion OCI segura
+
+- No subas `oci.config`, llaves privadas `.pem` ni credenciales al repositorio.
+- Usa un archivo local fuera del repo y apunta `OCI_CONFIG_FILE_PATH` a esa ruta en tu `.env`.
+- Toma como referencia `Info OCI Oracle/README.md` y `Info OCI Oracle/oci.config.example`.

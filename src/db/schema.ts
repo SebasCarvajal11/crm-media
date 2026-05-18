@@ -1,4 +1,4 @@
-import { pgSchema, uuid, text, timestamp, integer, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgSchema, uuid, text, timestamp, integer, bigint, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
 import { v7 as uuidv7 } from "uuid";
 
 const mediaSchema = pgSchema("schema_media");
@@ -14,7 +14,7 @@ export const mediaAssets = mediaSchema.table("media_assets", {
   objectKey: text("object_key").notNull(),
   originalName: text("original_name").notNull(),
   mimeType: text("mime_type").notNull(),
-  sizeBytes: integer("size_bytes").notNull(),
+  sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   uniqueIndex("uq_user_kind_version_width").on(t.userId, t.kind, t.avatarVersion, t.width)

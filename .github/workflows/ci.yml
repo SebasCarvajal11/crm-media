@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+  oci-verify:
+    if: ${{ secrets.OCI_CONFIG_FILE_CONTENT != '' && secrets.OCI_REGION != '' && secrets.OCI_NAMESPACE != '' && secrets.OCI_BUCKET_AVATARS_PUBLIC != '' && secrets.OCI_BUCKET_DOCS_PRIVATE != '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write OCI config
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/oci"
+          printf '%s\n' "${OCI_CONFIG_FILE_CONTENT}" > "$RUNNER_TEMP/oci/oci.config"
+        env:
+          OCI_CONFIG_FILE_CONTENT: ${{ secrets.OCI_CONFIG_FILE_CONTENT }}
+
+      - name: Verify OCI access
+        env:
+          DATABASE_URL: postgres://unused:unused@127.0.0.1:5432/unused
+          PORT: "3002"
+          NODE_ENV: test
+          OCI_CONFIG_FILE_PATH: ${{ runner.temp }}/oci/oci.config
+          OCI_CONFIG_PROFILE: DEFAULT
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_NAMESPACE: ${{ secrets.OCI_NAMESPACE }}
+          OCI_BUCKET_AVATARS_PUBLIC: ${{ secrets.OCI_BUCKET_AVATARS_PUBLIC }}
+          OCI_BUCKET_DOCS_PRIVATE: ${{ secrets.OCI_BUCKET_DOCS_PRIVATE }}
+          CLAMAV_HOST: 127.0.0.1
+          CLAMAV_PORT: "3310"
+          CLAMAV_SCAN_TIMEOUT_MS: "90000"
+          DOC_PAR_TTL_SECONDS: "300"
+          OCI_PAR_PRUNE_MAX: "80"
+          AVATAR_VERSIONS_TO_KEEP: "3"
+          MOD_COLLAB_URL: http://127.0.0.1:3001
+          GATEWAY_TRUST_SECRET: cima-local-gateway-trust-secret-do-not-use-production-2026
+        run: pnpm oci:verify

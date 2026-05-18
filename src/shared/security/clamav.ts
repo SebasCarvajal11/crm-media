@@ -12,7 +12,7 @@ const getScanner = async (): Promise<ClamScanner> => {
     clamdscan: {
       host: env.CLAMAV_HOST,
       port: env.CLAMAV_PORT,
-      timeout: 30000,
+      timeout: env.CLAMAV_SCAN_TIMEOUT_MS,
       localFallback: false,
     },
   });

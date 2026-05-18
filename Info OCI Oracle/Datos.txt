@@ -1,6 +1,0 @@
-[DEFAULT]
-user=ocid1.user.oc1..aaaaaaaaobxjsh6kkwcaep34aw23za7zcoav7wpdxphooqhi4erflr5hwbuq
-fingerprint=cb:25:08:1f:de:99:59:8b:a9:d4:f9:d6:a2:c6:06:c9
-tenancy=ocid1.tenancy.oc1..aaaaaaaam4iid6y3mxs25ropbooehpp6yw4fecfz7cx4zz2j5cl646y5m4la
-region=us-sanjose-1
-key_file=<path to your private keyfile> # TODO

@@ -1,32 +1,23 @@
 import sharp from "sharp";
 import { v4 as uuidv4 } from "uuid";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../db/connection";
 import { mediaAssets } from "../../db/schema";
 import { AppError } from "../../shared/middlewares/error-handler.middleware";
-import { detectFileType, imageMimes, isBlockedFileName, isBlockedMime } from "../../shared/security/file-validation";
+import {
+  assertDeclaredMimeMatchesBuffer,
+  detectFileType,
+  imageMimes,
+  isBlockedFileName,
+  isBlockedMime,
+} from "../../shared/security/file-validation";
+import { scanBufferForVirus } from "../../shared/security/clamav";
+import { assertCollabStorageAccess, type DocumentAccessActor } from "../../shared/collab-access-client";
 import { ociStorage } from "../../shared/storage/oci-storage";
+import { sanitizeFileNameForObjectKey, sanitizeStoredFileName } from "../../shared/sanitize-filename";
 import { env } from "../../config/env";
 
 const avatarSizes = [512, 256, 64] as const;
-
-const inferMimeFromFileName = (fileName: string): string | null => {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".txt")) return "text/plain";
-  if (lower.endsWith(".csv")) return "text/csv";
-  if (lower.endsWith(".pdf")) return "application/pdf";
-  if (lower.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  if (lower.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  if (lower.endsWith(".pptx")) return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-  if (lower.endsWith(".doc")) return "application/msword";
-  if (lower.endsWith(".xls")) return "application/vnd.ms-excel";
-  if (lower.endsWith(".ppt")) return "application/vnd.ms-powerpoint";
-  if (lower.endsWith(".zip")) return "application/zip";
-  if (lower.endsWith(".json")) return "application/json";
-  if (lower.endsWith(".md")) return "text/markdown";
-  if (lower.endsWith(".xml")) return "application/xml";
-  return null;
-};
 
 const extractVersionFromAvatarKey = (key: string) => {
   const match = key.match(/\/v(\d+)\//);
@@ -37,6 +28,13 @@ const extractVersionFromAvatarKey = (key: string) => {
 const extractSizeFromAvatarKey = (key: string) => {
   const match = key.match(/_(64|256|512)\.webp$/);
   return match?.[1] ?? null;
+};
+
+const assertBufferIsClean = async (buffer: Buffer) => {
+  const isClean = await scanBufferForVirus(buffer);
+  if (!isClean) {
+    throw new AppError(400, "El archivo fue rechazado por el escaneo antivirus");
+  }
 };
 
 const cleanupOldAvatarVersions = async (userId: string, currentVersion: number) => {
@@ -55,8 +53,11 @@ const cleanupOldAvatarVersions = async (userId: string, currentVersion: number) 
 
 export const mediaService = {
   uploadAvatar: async (userId: string, originalName: string, rawBuffer: Buffer) => {
+    const storedOriginalName = sanitizeStoredFileName(originalName);
     const detected = await detectFileType(rawBuffer);
     if (!detected || !imageMimes.has(detected.mime)) throw new AppError(400, "Archivo de imagen invalido");
+
+    await assertBufferIsClean(rawBuffer);
 
     return db.transaction(async (tx) => {
       // Advisory lock por usuario para evitar TOCTOU en el cálculo de la versión
@@ -84,7 +85,7 @@ export const mediaService = {
           width: px,
           bucket: "public",
           objectKey: key,
-          originalName,
+          originalName: storedOriginalName,
           mimeType: "image/webp",
           sizeBytes: processed.length,
         });
@@ -106,7 +107,8 @@ export const mediaService = {
     mimeType: string,
     sizeBytes: number,
   ) => {
-    if (isBlockedFileName(fileName)) {
+    const storedFileName = sanitizeStoredFileName(fileName);
+    if (isBlockedFileName(storedFileName)) {
       throw new AppError(400, "Tipo de archivo bloqueado por seguridad");
     }
     if (isBlockedMime(mimeType)) {
@@ -115,7 +117,7 @@ export const mediaService = {
     const MAX_BYTES = 25 * 1024 * 1024;
     if (sizeBytes > MAX_BYTES) throw new AppError(413, "Archivo excede 25MB");
 
-    const safeFileName = fileName.replace(/\s+/g, "_");
+    const safeFileName = sanitizeFileNameForObjectKey(storedFileName);
     const objectKey = `documents/${userId}/${uuidv4()}-${safeFileName}`;
     const uploadUrl = await ociStorage.createUploadPar(
       env.OCI_BUCKET_DOCS_PRIVATE,
@@ -141,7 +143,8 @@ export const mediaService = {
     if (!objectKey.startsWith(`documents/${userId}/`)) {
       throw new AppError(403, "El objectKey no pertenece a este usuario");
     }
-    if (isBlockedFileName(fileName) || isBlockedMime(mimeType)) {
+    const storedFileName = sanitizeStoredFileName(fileName);
+    if (isBlockedFileName(storedFileName) || isBlockedMime(mimeType)) {
       throw new AppError(400, "Tipo de archivo bloqueado por seguridad");
     }
 
@@ -150,26 +153,90 @@ export const mediaService = {
       throw new AppError(422, "El archivo aun no llegó a OCI. Reintenta el upload.");
     }
 
+    const objectBuffer = await ociStorage.getObjectBuffer(
+      env.OCI_BUCKET_DOCS_PRIVATE,
+      objectKey,
+    );
+    try {
+      await assertBufferIsClean(objectBuffer);
+      await assertDeclaredMimeMatchesBuffer(mimeType, storedFileName, objectBuffer);
+    } catch (err) {
+      await ociStorage.deleteObject(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
+      if (err instanceof AppError) throw err;
+      throw new AppError(
+        400,
+        err instanceof Error ? err.message : "El archivo no coincide con el tipo declarado",
+      );
+    }
+
+    if (objectBuffer.length !== sizeBytes) {
+      await ociStorage.deleteObject(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
+      throw new AppError(400, "El tamaño del archivo no coincide con el declarado");
+    }
+
+    const storedMime = mimeType;
+
     await db.insert(mediaAssets).values({
       userId,
       kind: "document",
       avatarVersion: null,
       bucket: "private",
       objectKey,
-      originalName: fileName,
-      mimeType,
-      sizeBytes,
+      originalName: storedFileName,
+      mimeType: storedMime,
+      sizeBytes: objectBuffer.length,
     });
 
     return { objectKey };
   },
 
-  getDocumentAccessUrl: async (objectKey: string, forceDownload = false) => {
+  getDocumentAccessUrl: async (
+    actor: DocumentAccessActor,
+    objectKey: string,
+    forceDownload = false,
+  ) => {
+    const [asset] = await db
+      .select({ userId: mediaAssets.userId })
+      .from(mediaAssets)
+      .where(and(eq(mediaAssets.objectKey, objectKey), eq(mediaAssets.kind, "document")))
+      .limit(1);
+
+    const isOwner =
+      asset &&
+      (asset.userId === actor.userId || asset.userId === actor.sub);
+    const ownsPathPrefix =
+      objectKey.startsWith(`documents/${actor.userId}/`) ||
+      objectKey.startsWith(`documents/${actor.sub}/`);
+
+    let allowed = Boolean(isOwner || (!asset && ownsPathPrefix));
+
+    if (!allowed) {
+      allowed = await assertCollabStorageAccess(actor, objectKey);
+    }
+
+    if (!allowed) {
+      throw new AppError(403, "No autorizado para acceder a este documento");
+    }
+
     const url = await ociStorage.createPrivateDocumentUrl(objectKey, forceDownload);
     return { url, expiresInSeconds: 300 };
   },
-  deleteDocument: async (objectKey: string) => {
+  deleteDocument: async (userId: string, objectKey: string) => {
+    const [asset] = await db
+      .select({ id: mediaAssets.id, userId: mediaAssets.userId })
+      .from(mediaAssets)
+      .where(and(eq(mediaAssets.objectKey, objectKey), eq(mediaAssets.kind, "document")))
+      .limit(1);
+
+    if (!asset) {
+      throw new AppError(404, "Documento no encontrado");
+    }
+    if (asset.userId !== userId) {
+      throw new AppError(403, "No autorizado para eliminar este documento");
+    }
+
     await ociStorage.deleteObject(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
+    await db.delete(mediaAssets).where(eq(mediaAssets.id, asset.id));
     return { deleted: true };
   },
   getCurrentAvatar: async (userId: string) => {
@@ -203,24 +270,54 @@ export const mediaService = {
   },
   getCurrentAvatarsByUsers: async (userIds: string[]) => {
     const uniqueUserIds = Array.from(new Set(userIds.filter(Boolean)));
-    const results = await Promise.all(
-      uniqueUserIds.map(async (userId) => {
-        try {
-          const avatar = await mediaService.getCurrentAvatar(userId);
-          return [userId, avatar] as const;
-        } catch (error) {
-          if (error instanceof AppError && error.status === 404) return null;
-          throw error;
-        }
+    if (uniqueUserIds.length === 0) {
+      return { items: {} as Record<string, { version: number; urls: Record<string, string> }> };
+    }
+
+    const rows = await db
+      .select({
+        userId: mediaAssets.userId,
+        avatarVersion: mediaAssets.avatarVersion,
+        objectKey: mediaAssets.objectKey,
       })
-    );
+      .from(mediaAssets)
+      .where(and(eq(mediaAssets.kind, "avatar"), inArray(mediaAssets.userId, uniqueUserIds)));
+
+    const maxVersionByUser = new Map<string, number>();
+    for (const row of rows) {
+      const version = row.avatarVersion ?? 0;
+      const prev = maxVersionByUser.get(row.userId) ?? 0;
+      if (version > prev) maxVersionByUser.set(row.userId, version);
+    }
+
+    const latestRows = rows.filter((row) => {
+      const max = maxVersionByUser.get(row.userId) ?? 0;
+      return max > 0 && row.avatarVersion === max;
+    });
 
     const items: Record<string, { version: number; urls: Record<string, string> }> = {};
-    for (const entry of results) {
-      if (!entry) continue;
-      const [userId, avatar] = entry;
-      items[userId] = avatar;
+
+    const grouped = new Map<string, typeof latestRows>();
+    for (const row of latestRows) {
+      const list = grouped.get(row.userId) ?? [];
+      list.push(row);
+      grouped.set(row.userId, list);
     }
+
+    for (const [userId, userRows] of grouped) {
+      const version = userRows[0]?.avatarVersion ?? 0;
+      const urls: Record<string, string> = {};
+      for (const row of userRows) {
+        const size = extractSizeFromAvatarKey(row.objectKey);
+        if (!size) continue;
+        urls[size] = await ociStorage.getPublicObjectUrl(
+          env.OCI_BUCKET_AVATARS_PUBLIC,
+          row.objectKey,
+        );
+      }
+      items[userId] = { version, urls };
+    }
+
     return { items };
   },
 };
