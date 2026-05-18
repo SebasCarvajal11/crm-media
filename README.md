@@ -29,7 +29,7 @@ Health check: `http://localhost:3002/health`
 
 ## Environment
 
-Start from [.env.example](D:\BACKUP CELULAR OLIMPO\crm-media\.env.example).
+Start from [`./.env.example`](./.env.example).
 
 Required runtime areas:
 
@@ -39,7 +39,7 @@ Required runtime areas:
 - `MOD_COLLAB_URL`
 - `GATEWAY_TRUST_SECRET`
 
-Real OCI credentials must stay outside the repository. Use [oci.config.example](D:\BACKUP CELULAR OLIMPO\crm-media\oci.config.example) only as a shape reference and point `OCI_CONFIG_FILE_PATH` to a private local file.
+Real OCI credentials must stay outside the repository. Use [`./oci.config.example`](./oci.config.example) only as a shape reference and point `OCI_CONFIG_FILE_PATH` to a private file managed outside source control.
 
 ## API Surface
 
