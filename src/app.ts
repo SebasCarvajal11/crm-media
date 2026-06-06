@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { mediaRoutes } from "./modules/media/media.routes";
+import { createGatewayRoutes } from "./gateway/gateway.routes";
 import { createOpenApiRoutes } from "./openapi/openapi.routes";
 import { onError } from "./shared/middlewares/error-handler.middleware";
 import { checkPostgres, checkRedis, buildHealthResponse } from "./shared/health";
@@ -32,6 +33,7 @@ export const createApp = () => {
   });
 
   app.route("/", createOpenApiRoutes());
+  app.route("/", createGatewayRoutes());
 
   // --- API v1 routes ---
   const v1 = new Hono();

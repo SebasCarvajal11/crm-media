@@ -15,6 +15,7 @@ COPY --from=builder /app/dist ./dist
 COPY src ./src
 COPY tsconfig.json ./
 COPY drizzle.config.ts ./
+COPY gateway ./gateway
 COPY openapi ./openapi
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
