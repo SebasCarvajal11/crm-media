@@ -12,6 +12,7 @@
     "worker:quarantine-scan": "tsx src/workers/quarantine-scan.worker.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "tsx src/scripts/ensure-db-schema.ts",
+    "openapi:check": "node scripts/validate-openapi.mjs",
     "test:unit": "vitest run",
     "preinstall": "pnpm dlx only-allow pnpm"
   },
@@ -45,6 +46,7 @@
     "@types/node": "^20.11.17",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
+    "openapi-typescript": "^7.13.0",
     "typescript": "^5.8.3",
     "vitest": "^4.1.8"
   }
