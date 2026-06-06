@@ -1,5 +1,6 @@
 import { AppError } from "../../shared/middlewares/error-handler.middleware";
-import { mediaService } from "./media.service";
+import { avatarService } from "./avatar.service";
+import { documentService } from "./document.service";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
@@ -30,7 +31,7 @@ export const mediaController = {
     const bytes = await uploaded.arrayBuffer();
     const buffer = Buffer.from(bytes);
     if (buffer.length > MAX_AVATAR_BYTES) throw new AppError(413, "Avatar excede 5MB");
-    const data = await mediaService.uploadAvatar(userId, uploaded.name, buffer);
+    const data = await avatarService.uploadAvatar(userId, uploaded.name, buffer);
     return { data };
   },
 
@@ -50,7 +51,7 @@ export const mediaController = {
     if (!body.fileName || !body.mimeType || typeof body.sizeBytes !== "number") {
       throw new AppError(400, "Se requieren fileName, mimeType y sizeBytes");
     }
-    const data = await mediaService.generateDocumentUploadUrl(
+    const data = await documentService.generateDocumentUploadUrl(
       userId,
       body.fileName,
       body.mimeType,
@@ -74,7 +75,7 @@ export const mediaController = {
     if (!body.objectKey || !body.fileName || !body.mimeType || typeof body.sizeBytes !== "number") {
       throw new AppError(400, "Se requieren objectKey, fileName, mimeType y sizeBytes");
     }
-    const data = await mediaService.confirmDocumentUpload(
+    const data = await documentService.confirmDocumentUpload(
       userId,
       body.objectKey,
       body.fileName,
@@ -90,19 +91,19 @@ export const mediaController = {
     objectKey: string,
     forceDownload: boolean,
   ) => {
-    const data = await mediaService.getDocumentAccessUrl(actor, objectKey, forceDownload);
+    const data = await documentService.getDocumentAccessUrl(actor, objectKey, forceDownload);
     return { data };
   },
-  deleteDocument: async (userId: string, objectKey: string) => {
-    const data = await mediaService.deleteDocument(userId, objectKey);
+  deleteDocument: async (userId: string, userSub: string, userRole: string, objectKey: string) => {
+    const data = await documentService.deleteDocument(userId, userSub, userRole, objectKey);
     return { data };
   },
   getCurrentAvatar: async (userId: string) => {
-    const data = await mediaService.getCurrentAvatar(userId);
+    const data = await avatarService.getCurrentAvatar(userId);
     return { data };
   },
   getCurrentAvatarsByUsers: async (userIds: string[]) => {
-    const data = await mediaService.getCurrentAvatarsByUsers(userIds);
+    const data = await avatarService.getCurrentAvatarsByUsers(userIds);
     return { data };
   },
 };

@@ -36,7 +36,7 @@ Required runtime areas:
 - database connectivity
 - OCI config path, region, namespace, and bucket names
 - ClamAV host and port
-- `MOD_COLLAB_URL`
+- Redis media command streams
 - `GATEWAY_TRUST_SECRET`
 
 Real OCI credentials must stay outside the repository. Use [`./oci.config.example`](./oci.config.example) only as a shape reference and point `OCI_CONFIG_FILE_PATH` to a private file managed outside source control.

@@ -1,0 +1,56 @@
+{
+  "host": "media",
+  "endpoints": [
+    {
+      "endpoint": "/docs/media/openapi.yaml",
+      "method": "GET",
+      "backend_url": "/openapi.yaml",
+      "public": true
+    },
+    {
+      "endpoint": "/media/avatars",
+      "method": "POST",
+      "backend_url": "/media/avatars"
+    },
+    {
+      "endpoint": "/media/documents/upload-url",
+      "method": "POST",
+      "backend_url": "/media/documents/upload-url"
+    },
+    {
+      "endpoint": "/media/documents/confirm",
+      "method": "POST",
+      "backend_url": "/media/documents/confirm"
+    },
+    {
+      "endpoint": "/media/documents",
+      "method": "DELETE",
+      "backend_url": "/media/documents",
+      "input_query_strings": [
+        "objectKey"
+      ]
+    },
+    {
+      "endpoint": "/media/documents/access",
+      "method": "GET",
+      "backend_url": "/media/documents/access",
+      "input_query_strings": [
+        "objectKey",
+        "download"
+      ]
+    },
+    {
+      "endpoint": "/media/avatars/current",
+      "method": "GET",
+      "backend_url": "/media/avatars/current"
+    },
+    {
+      "endpoint": "/media/avatars/users",
+      "method": "GET",
+      "backend_url": "/media/avatars/users",
+      "input_query_strings": [
+        "ids"
+      ]
+    }
+  ]
+}

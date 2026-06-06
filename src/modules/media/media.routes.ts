@@ -99,8 +99,10 @@ mediaRoutes.get("/documents/access", async (c) => {
 
 mediaRoutes.delete("/documents", async (c) => {
   const userId = getUserId(c.req.raw);
+  const userSub = c.req.header("x-user-sub") ?? userId;
+  const userRole = c.req.header("x-user-role") ?? "client";
   const objectKey = c.req.query("objectKey");
   if (!objectKey) throw new AppError(400, "objectKey es requerido");
-  const payload = await mediaController.deleteDocument(userId, objectKey);
+  const payload = await mediaController.deleteDocument(userId, userSub, userRole, objectKey);
   return c.json(payload);
 });

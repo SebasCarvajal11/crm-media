@@ -77,6 +77,18 @@ const run = async () => {
       allOk = fail(`CreatePreauthenticatedRequest docs (${env.OCI_BUCKET_DOCS_PRIVATE})`, error) && allOk;
     }
 
+    // Clean up
+    try {
+      await client.deleteObject({
+        namespaceName: namespace,
+        bucketName: env.OCI_BUCKET_DOCS_PRIVATE,
+        objectName: testKey,
+      });
+      ok(`Limpieza de objeto de prueba exitosa: ${testKey}`);
+    } catch (cleanupError) {
+      console.warn(`[WARN] No se pudo limpiar objeto de prueba: ${testKey}`, cleanupError);
+    }
+
     if (!allOk) {
       process.exitCode = 1;
     }
