@@ -104,6 +104,7 @@ jobs:
         if: ${{ steps.guard.outputs.enabled == 'true' }}
         env:
           DATABASE_URL: postgres://unused:unused@127.0.0.1:5432/unused
+          DB_SCHEMA: schema_media
           PORT: "3002"
           NODE_ENV: test
           OCI_CONFIG_FILE_PATH: ${{ runner.temp }}/oci/oci.config
