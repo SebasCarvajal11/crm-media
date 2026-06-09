@@ -187,6 +187,4 @@ export const ociStorage = {
       });
     }, { maxAttempts: 3, delayMs: 150 });
   },
-
-  getRuntimeNamespace: getNamespace,
 };
