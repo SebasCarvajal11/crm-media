@@ -26,7 +26,7 @@ cp .env.example .env
 | `CLAMAV_PORT` | Puerto de ClamAV (default: 3310) | ✅ |
 | `SERVICE_VERSION` | Versión semver del servicio | ✅ |
 
-Ver [`.env.example`](./.env.example) y [`oci.config.example`](./oci.config.example) para referencia.
+Ver [`.env.example`](./.env.example) para referencia.
 
 > **Importante**: Las credenciales OCI reales deben estar en un archivo externo al repo. Nunca commitear claves OCI.
 
@@ -34,7 +34,6 @@ Ver [`.env.example`](./.env.example) y [`oci.config.example`](./oci.config.examp
 
 ```bash
 pnpm install
-pnpm db:bootstrap     # crear schema_media y rol en Postgres
 pnpm db:push          # aplicar migraciones Drizzle
 pnpm oci:verify       # verificar conectividad OCI (opcional en dev sin OCI real)
 pnpm dev              # servidor con hot-reload en :3002
@@ -44,7 +43,7 @@ Endpoints útiles:
 
 - Health: `http://localhost:3002/health` (incluye estado de OCI y ClamAV)
 - Métricas: `http://localhost:3002/metrics`
-- OpenAPI: `http://localhost:3002/openapi.json`
+- OpenAPI: `http://localhost:3002/openapi.yaml`
 
 Workers (procesos separados):
 
@@ -56,8 +55,8 @@ pnpm worker:quarantine-scan   # escaneo antivirus de archivos en cuarentena
 Utilidades:
 
 ```bash
-pnpm dlq:media:list           # listar entradas en DLQ de media-commands
-pnpm dlq:media:replay         # reintentar entrada específica del DLQ
+pnpm test:unit        # unitarios Vitest
+pnpm test:contract    # contrato Hurl contra gateway
 ```
 
 ## Media Commands DLQ
