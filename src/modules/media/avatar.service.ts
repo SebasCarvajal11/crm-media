@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { and, eq, sql, inArray } from "drizzle-orm";
 import { db } from "../../db/connection";
 import { mediaAssets } from "../../db/schema";
-import { AppError } from "../../shared/middlewares/error-handler.middleware";
+import { AppError, NotFoundError } from "../../shared/middlewares/error-handler.middleware";
 import { detectFileType, imageMimes } from "../../shared/security/file-validation";
 import { scanBufferForVirus } from "../../shared/security/clamav";
 import { ociStorage } from "../../shared/storage/oci-storage";
@@ -48,7 +48,14 @@ const cleanupOldAvatarVersions = async (userId: string, currentVersion: number) 
 };
 
 export const avatarService = {
-  uploadAvatar: async (userId: string, originalName: string, rawBuffer: Buffer) => {
+  uploadAvatar: async (
+    userId: string,
+    originalName: string,
+    rawBuffer: Buffer,
+    actor?: { userId: string; sub: string; role: string; email: string },
+    ipAddress?: string,
+    userAgent?: string,
+  ) => {
     const storedOriginalName = sanitizeStoredFileName(originalName);
     const detected = await detectFileType(rawBuffer);
     if (!detected || !imageMimes.has(detected.mime)) throw new AppError(400, "Archivo de imagen invalido");
@@ -87,6 +94,22 @@ export const avatarService = {
       }
 
       await cleanupOldAvatarVersions(userId, avatarVersion);
+
+      if (actor) {
+        const { createAuditRepository } = await import("./repository/audit.repository");
+        await createAuditRepository(tx).createAuditLog({
+          actorSub: actor.sub,
+          actorEmail: actor.email,
+          actorRole: actor.role as any,
+          action: "avatar.updated",
+          resourceType: "user",
+          resourceId: userId,
+          ipAddress: ipAddress || "",
+          userAgent: userAgent || "",
+          details: { originalName: storedOriginalName, avatarVersion },
+        });
+      }
+
       return { version: avatarVersion, urls };
     });
   },
@@ -98,7 +121,7 @@ export const avatarService = {
       .where(and(eq(mediaAssets.userId, userId), eq(mediaAssets.kind, "avatar")));
 
     const version = latestVersion[0]?.latest ?? 0;
-    if (version <= 0) throw new AppError(404, "El usuario no tiene avatar");
+    if (version <= 0) throw new NotFoundError("El usuario no tiene avatar");
 
     const rows = await db
       .select({ objectKey: mediaAssets.objectKey })

@@ -1,38 +1,32 @@
 import { Hono } from "hono";
 import { AppError } from "../../shared/middlewares/error-handler.middleware";
 import { userRateLimit } from "../../shared/middlewares/rate-limit.middleware";
-import { gatewayTrustMiddleware } from "../../shared/middlewares/gateway-trust.middleware";
+import { authMiddleware, requireRole, AppEnv } from "../../shared/middlewares/auth.middleware";
 import { mediaController } from "./media.controller";
+import { env } from "../../config/env";
 
-export const mediaRoutes = new Hono();
+export const mediaRoutes = new Hono<AppEnv>();
 
-mediaRoutes.use("*", gatewayTrustMiddleware);
-
-const getUserId = (req: Request) => {
-  const userId = req.headers.get("x-user-id") ?? req.headers.get("x-user-sub");
-  if (!userId) throw new AppError(401, "Header X-User-ID requerido");
-  return userId;
-};
+mediaRoutes.use("*", authMiddleware);
 
 // ─── Avatares (buffer: necesitan resize con sharp) ─────────────────────────
 mediaRoutes.post(
   "/avatars",
-  userRateLimit({ maxAttempts: 10, windowMs: 60 * 60 * 1000 }),
+  userRateLimit({ maxAttempts: env.RATE_LIMIT_MEDIA_AVATAR_MAX, windowMs: env.RATE_LIMIT_MEDIA_AVATAR_WINDOW_MS }),
   async (c) => {
-  const userId = getUserId(c.req.raw);
-  const payload = await mediaController.uploadAvatar(c.req.raw, userId);
-  return c.json(payload, 201);
+    const user = c.get("user");
+    const payload = await mediaController.uploadAvatar(c.req.raw, user);
+    return c.json(payload, 201);
   },
 );
 
 mediaRoutes.get("/avatars/current", async (c) => {
-  const userId = getUserId(c.req.raw);
+  const { userId } = c.get("user");
   const payload = await mediaController.getCurrentAvatar(userId);
   return c.json(payload);
 });
 
 mediaRoutes.get("/avatars/users", async (c) => {
-  getUserId(c.req.raw);
   const idsRaw = c.req.query("ids") ?? "";
   const ids = idsRaw
     .split(",")
@@ -54,11 +48,11 @@ mediaRoutes.get("/avatars/users", async (c) => {
  */
 mediaRoutes.post(
   "/documents/upload-url",
-  userRateLimit({ maxAttempts: 40, windowMs: 15 * 60 * 1000 }),
+  userRateLimit({ maxAttempts: env.RATE_LIMIT_MEDIA_DOC_UPLOAD_MAX, windowMs: env.RATE_LIMIT_MEDIA_DOC_UPLOAD_WINDOW_MS }),
   async (c) => {
-  const userId = getUserId(c.req.raw);
-  const payload = await mediaController.generateDocumentUploadUrl(c.req.raw, userId);
-  return c.json(payload, 200);
+    const user = c.get("user");
+    const payload = await mediaController.generateDocumentUploadUrl(c.req.raw, user);
+    return c.json(payload, 200);
   },
 );
 
@@ -72,20 +66,17 @@ mediaRoutes.post(
  */
 mediaRoutes.post(
   "/documents/confirm",
-  userRateLimit({ maxAttempts: 40, windowMs: 15 * 60 * 1000 }),
+  userRateLimit({ maxAttempts: env.RATE_LIMIT_MEDIA_DOC_CONFIRM_MAX, windowMs: env.RATE_LIMIT_MEDIA_DOC_CONFIRM_WINDOW_MS }),
   async (c) => {
-  const userId = getUserId(c.req.raw);
-  const payload = await mediaController.confirmDocumentUpload(c.req.raw, userId);
-  return c.json(payload, 201);
+    const user = c.get("user");
+    const payload = await mediaController.confirmDocumentUpload(c.req.raw, user);
+    return c.json(payload, 201);
   },
 );
 
 // ─── Documentos: acceso y gestión ─────────────────────────────────────────
 mediaRoutes.get("/documents/access", async (c) => {
-  const userId = getUserId(c.req.raw);
-  const sub = c.req.header("x-user-sub") ?? userId;
-  const role = c.req.header("x-user-role") ?? "client";
-  const email = c.req.header("x-user-email") ?? "";
+  const { userId, sub, role, email } = c.get("user");
   const objectKey = c.req.query("objectKey");
   if (!objectKey) throw new AppError(400, "objectKey es requerido");
   const forceDownload = c.req.query("download") === "true";
@@ -97,12 +88,14 @@ mediaRoutes.get("/documents/access", async (c) => {
   return c.json(payload);
 });
 
-mediaRoutes.delete("/documents", async (c) => {
-  const userId = getUserId(c.req.raw);
-  const userSub = c.req.header("x-user-sub") ?? userId;
-  const userRole = c.req.header("x-user-role") ?? "client";
-  const objectKey = c.req.query("objectKey");
-  if (!objectKey) throw new AppError(400, "objectKey es requerido");
-  const payload = await mediaController.deleteDocument(userId, userSub, userRole, objectKey);
-  return c.json(payload);
-});
+mediaRoutes.delete(
+  "/documents",
+  requireRole("admin", "worker"),
+  async (c) => {
+    const user = c.get("user");
+    const objectKey = c.req.query("objectKey");
+    if (!objectKey) throw new AppError(400, "objectKey es requerido");
+    const payload = await mediaController.deleteDocument(c.req.raw, user, objectKey);
+    return c.json(payload);
+  },
+);

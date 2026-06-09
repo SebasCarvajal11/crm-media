@@ -11,20 +11,21 @@ export async function checkClamav(host: string, port: number): Promise<HealthDep
     socket.on("data", (data) => {
       socket.destroy();
       if (data.toString().includes("PONG")) {
-        resolve({ name: "clamav", status: "ok", latencyMs: Date.now() - start });
+        resolve({ status: "ok", latencyMs: Date.now() - start });
       } else {
-        resolve({ name: "clamav", status: "down", latencyMs: Date.now() - start, error: `Unexpected: ${data}` });
+        resolve({ status: "down", latencyMs: Date.now() - start, error: `Unexpected: ${data}` });
       }
     });
 
     socket.on("error", (error) => {
       socket.destroy();
-      resolve({ name: "clamav", status: "down", latencyMs: Date.now() - start, error: error.message });
+      resolve({ status: "down", latencyMs: Date.now() - start, error: error.message });
     });
 
     socket.on("timeout", () => {
       socket.destroy();
-      resolve({ name: "clamav", status: "timeout", latencyMs: Date.now() - start, error: "Connection timeout" });
+      resolve({ status: "timeout", latencyMs: Date.now() - start, error: "Connection timeout" });
     });
   });
 }
+

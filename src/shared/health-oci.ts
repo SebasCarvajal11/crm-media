@@ -5,13 +5,13 @@ export async function checkOci(client: ObjectStorageClient): Promise<HealthDepen
   const start = Date.now();
   try {
     await client.getNamespace({});
-    return { name: "oci", status: "ok", latencyMs: Date.now() - start };
+    return { status: "ok", latencyMs: Date.now() - start };
   } catch (error) {
     return {
-      name: "oci",
       status: "down",
       latencyMs: Date.now() - start,
       error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 }
+

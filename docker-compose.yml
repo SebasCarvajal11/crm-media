@@ -1,0 +1,108 @@
+services:
+  crm-media:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CONTAINER_MODE: server
+      DATABASE_URL: postgresql://media_user:${MEDIA_DB_PASSWORD:-mediapassword}@postgres_db:5432/crm_database
+      DB_SCHEMA: schema_media
+      PORT: 3002
+      REDIS_URL: redis://redis:6379
+      CLAMAV_HOST: clamav-scanner
+      CLAMAV_PORT: 3310
+      TRUST_GATEWAY_JWT_HEADERS: "false"
+      JWKS_URI: ${JWKS_URI:-http://crm-auth:3000/.well-known/jwks.json}
+      COLLAB_JWKS_URI: ${COLLAB_JWKS_URI:-http://crm-collab:3001/.well-known/service-jwks.json}
+      COLLAB_JWT_ISS: ${COLLAB_JWT_ISS:-crm-collab}
+      OCI_CONFIG_SOURCE_FILE: /opt/cima/secrets/oci/oci.config
+      OCI_CONFIG_FILE_PATH: /tmp/cima-oci/oci.config
+      MEDIA_COMMANDS_STREAM_KEY: stream:collab.media-commands
+      MEDIA_RESPONSES_STREAM_KEY: stream:media.asset-responses
+      MEDIA_COMMANDS_CONSUMER_GROUP: group:media.commands
+      MEDIA_COMMANDS_DLQ_STREAM_KEY: stream:media.commands-dlq
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clamav-scanner:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ${OCI_CONFIG_HOST_DIR:?OCI_CONFIG_HOST_DIR is required}
+        target: ${OCI_CONFIG_CONTAINER_DIR:?OCI_CONFIG_CONTAINER_DIR is required}
+        read_only: true
+    networks:
+      shared_backplane:
+        aliases:
+          - media
+
+  crm-media-command-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["pnpm", "worker:media-commands"]
+    env_file:
+      - .env
+    environment:
+      CONTAINER_MODE: worker
+      DATABASE_URL: postgresql://media_user:${MEDIA_DB_PASSWORD:-mediapassword}@postgres_db:5432/crm_database
+      DB_SCHEMA: schema_media
+      REDIS_URL: redis://redis:6379
+      CLAMAV_HOST: clamav-scanner
+      CLAMAV_PORT: 3310
+      COLLAB_JWKS_URI: ${COLLAB_JWKS_URI:-http://crm-collab:3001/.well-known/service-jwks.json}
+      COLLAB_JWT_ISS: ${COLLAB_JWT_ISS:-crm-collab}
+      OCI_CONFIG_SOURCE_FILE: /opt/cima/secrets/oci/oci.config
+      OCI_CONFIG_FILE_PATH: /tmp/cima-oci/oci.config
+      MEDIA_COMMANDS_STREAM_KEY: stream:collab.media-commands
+      MEDIA_RESPONSES_STREAM_KEY: stream:media.asset-responses
+      MEDIA_COMMANDS_CONSUMER_GROUP: group:media.commands
+      MEDIA_COMMANDS_DLQ_STREAM_KEY: stream:media.commands-dlq
+    depends_on:
+      crm-media:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ${OCI_CONFIG_HOST_DIR:?OCI_CONFIG_HOST_DIR is required}
+        target: ${OCI_CONFIG_CONTAINER_DIR:?OCI_CONFIG_CONTAINER_DIR is required}
+        read_only: true
+    networks:
+      - shared_backplane
+
+  crm-media-quarantine-scan-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["pnpm", "worker:quarantine-scan"]
+    env_file:
+      - .env
+    environment:
+      CONTAINER_MODE: worker
+      DATABASE_URL: postgresql://media_user:${MEDIA_DB_PASSWORD:-mediapassword}@postgres_db:5432/crm_database
+      DB_SCHEMA: schema_media
+      REDIS_URL: redis://redis:6379
+      CLAMAV_HOST: clamav-scanner
+      CLAMAV_PORT: 3310
+      OCI_CONFIG_SOURCE_FILE: /opt/cima/secrets/oci/oci.config
+      OCI_CONFIG_FILE_PATH: /tmp/cima-oci/oci.config
+    depends_on:
+      crm-media:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ${OCI_CONFIG_HOST_DIR:?OCI_CONFIG_HOST_DIR is required}
+        target: ${OCI_CONFIG_CONTAINER_DIR:?OCI_CONFIG_CONTAINER_DIR is required}
+        read_only: true
+    networks:
+      - shared_backplane
+
+networks:
+  shared_backplane:
+    name: cima-crm-local-backplane

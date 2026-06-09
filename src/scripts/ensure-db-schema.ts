@@ -1,6 +1,7 @@
 import { Client } from "pg";
 import { env } from "../config/env";
 import { pgConnectionConfig } from "../db/pg-config";
+import { ensureAuditLogPartitions } from "../db/scripts/ensure-audit-log-partitions";
 
 const client = new Client(pgConnectionConfig);
 const dbSchema = env.DB_SCHEMA;
@@ -50,6 +51,24 @@ try {
     CREATE UNIQUE INDEX IF NOT EXISTS "uq_user_kind_version_width"
     ON "${dbSchema}"."media_assets" ("user_id", "kind", "avatar_version", "width");
   `);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS "${dbSchema}"."audit_logs" (
+      "id" bigserial NOT NULL,
+      "actor_sub" uuid,
+      "actor_email" varchar(255),
+      "actor_role" varchar(20),
+      "action" varchar(120) NOT NULL,
+      "resource_type" varchar(80) NOT NULL,
+      "resource_id" varchar(255),
+      "ip_address" varchar(45),
+      "user_agent" varchar(500),
+      "correlation_id" uuid,
+      "details" jsonb,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      PRIMARY KEY ("id", "created_at")
+    ) PARTITION BY RANGE (created_at);
+  `);
+  await ensureAuditLogPartitions(client as any);
 } finally {
   await client.end();
 }

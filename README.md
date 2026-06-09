@@ -1,60 +1,87 @@
 # CRM Media
 
-`crm-media` is the CIMA CRM media service. It owns avatar storage, private document storage, antivirus validation, and OCI Object Storage integration.
+> Servicio de almacenamiento de archivos y medios para CIMA CRM.
 
-## Scope
+## Propósito
 
-- Avatar upload and retrieval
-- Private document upload confirmation and access URL generation
-- File validation and antivirus scanning
-- Media metadata persistence in PostgreSQL
+`crm-media` gestiona el almacenamiento de avatares y documentos privados en OCI Object Storage, validación antivirus con ClamAV, y generación de URLs pre-firmadas de acceso. Procesa comandos de `crm-collab` via Redis Streams, verificando la firma JWT de servicio antes de ejecutar cualquier operación. No tiene UI propia; toda interacción es via API o eventos asíncronos.
 
-This service depends on PostgreSQL, OCI Object Storage, ClamAV, and `crm-collab` for project-file authorization checks.
+## Entorno
 
-## Local Development
+```bash
+cp .env.example .env
+# Completar: DATABASE_URL, REDIS_URL, JWKS_URI, OCI_*, CLAMAV_HOST
+```
+
+| Variable | Descripción | Requerida |
+|----------|-------------|-----------|
+| `DATABASE_URL` | Conexión PostgreSQL (`schema_media`) | ✅ |
+| `REDIS_URL` | Redis para media-commands stream | ✅ |
+| `JWKS_URI` | JWKS de `crm-auth` para validar JWTs de usuario | ✅ |
+| `COLLAB_JWT_PUBLIC_KEY` | Clave pública RSA de `crm-collab` para verificar comandos | ✅ |
+| `OCI_CONFIG_FILE_PATH` | Path al archivo de config OCI (fuera del repo) | ✅ |
+| `OCI_NAMESPACE` | Namespace de OCI Object Storage | ✅ |
+| `OCI_BUCKET_*` | Nombres de los buckets OCI | ✅ |
+| `CLAMAV_HOST` | Host del servicio ClamAV | ✅ |
+| `CLAMAV_PORT` | Puerto de ClamAV (default: 3310) | ✅ |
+| `SERVICE_VERSION` | Versión semver del servicio | ✅ |
+
+Ver [`.env.example`](./.env.example) y [`oci.config.example`](./oci.config.example) para referencia.
+
+> **Importante**: Las credenciales OCI reales deben estar en un archivo externo al repo. Nunca commitear claves OCI.
+
+## Local
 
 ```bash
 pnpm install
-pnpm db:push
-pnpm dev
+pnpm db:bootstrap     # crear schema_media y rol en Postgres
+pnpm db:push          # aplicar migraciones Drizzle
+pnpm oci:verify       # verificar conectividad OCI (opcional en dev sin OCI real)
+pnpm dev              # servidor con hot-reload en :3002
 ```
 
-Useful commands:
+Endpoints útiles:
 
-- `pnpm build`
-- `pnpm oci:verify`
-- `pnpm db:generate`
+- Health: `http://localhost:3002/health` (incluye estado de OCI y ClamAV)
+- Métricas: `http://localhost:3002/metrics`
+- OpenAPI: `http://localhost:3002/openapi.json`
 
-Health check: `http://localhost:3002/health`
+Workers (procesos separados):
 
-## Environment
+```bash
+pnpm worker:media-commands    # procesa comandos de crm-collab via Redis Stream
+pnpm worker:quarantine-scan   # escaneo antivirus de archivos en cuarentena
+```
 
-Start from [`./.env.example`](./.env.example).
+Utilidades:
 
-Required runtime areas:
+```bash
+pnpm dlq:media:list           # listar entradas en DLQ de media-commands
+pnpm dlq:media:replay         # reintentar entrada específica del DLQ
+```
 
-- database connectivity
-- OCI config path, region, namespace, and bucket names
-- ClamAV host and port
-- Redis media command streams
-- `GATEWAY_TRUST_SECRET`
+## Media Commands DLQ
 
-Real OCI credentials must stay outside the repository. Use [`./oci.config.example`](./oci.config.example) only as a shape reference and point `OCI_CONFIG_FILE_PATH` to a private file managed outside source control.
+Comandos de `crm-collab` que fallan tras `MEDIA_COMMANDS_MAX_RETRIES` se mueven a la DLQ con metadata completa. Se publica automáticamente una respuesta `file.command-failed` al stream de respuestas para que `crm-collab` pueda reaccionar.
 
-## API Surface
+## Deploy
 
-- `POST /media/avatars`
-- `GET /media/avatars/current`
-- `GET /media/avatars/users`
-- `POST /media/documents/upload-url`
-- `POST /media/documents/confirm`
-- `GET /media/documents/access`
-- `DELETE /media/documents`
+```bash
+# Desde crm-infra/
+./deploy/remote/deploy-component.sh media
+```
 
-## Verification
+Ver [crm-infra/ONBOARDING.md](../crm-infra/ONBOARDING.md).
 
-Minimum repo validation:
+## Tests
 
-1. `pnpm build`
-2. `pnpm db:push`
-3. `pnpm oci:verify`
+```bash
+pnpm test:unit      # unitarios Vitest
+pnpm build          # verificación de tipos TypeScript
+pnpm oci:verify     # conectividad OCI
+```
+
+## Contrato público
+
+- OpenAPI: [`openapi/openapi.yaml`](./openapi/openapi.yaml)
+- Gateway manifest: [`gateway/gateway.manifest.json`](./gateway/gateway.manifest.json)

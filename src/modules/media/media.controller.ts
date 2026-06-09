@@ -17,9 +17,15 @@ const assertAvatarRequestWithinSizeLimit = (request: Request, file?: File) => {
   }
 };
 
+const getContextFromRequest = (request: Request) => {
+  const ipAddress = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+  const userAgent = request.headers.get("user-agent") || "";
+  return { ipAddress, userAgent };
+};
+
 export const mediaController = {
   // ─── Avatares (mantiene flujo buffer — son pequeños y requieren sharp resize) ───
-  uploadAvatar: async (request: Request, userId: string) => {
+  uploadAvatar: async (request: Request, user: any) => {
     assertAvatarRequestWithinSizeLimit(request);
 
     const form = await request.formData();
@@ -31,7 +37,16 @@ export const mediaController = {
     const bytes = await uploaded.arrayBuffer();
     const buffer = Buffer.from(bytes);
     if (buffer.length > MAX_AVATAR_BYTES) throw new AppError(413, "Avatar excede 5MB");
-    const data = await avatarService.uploadAvatar(userId, uploaded.name, buffer);
+    
+    const { ipAddress, userAgent } = getContextFromRequest(request);
+    const data = await avatarService.uploadAvatar(
+      user.userId,
+      uploaded.name,
+      buffer,
+      user,
+      ipAddress,
+      userAgent
+    );
     return { data };
   },
 
@@ -42,7 +57,7 @@ export const mediaController = {
    * El frontend recibe uploadUrl y objectKey, luego hace PUT directo a OCI.
    * Body JSON: { fileName, mimeType, sizeBytes }
    */
-  generateDocumentUploadUrl: async (request: Request, userId: string) => {
+  generateDocumentUploadUrl: async (request: Request, user: any) => {
     const body = (await request.json()) as {
       fileName?: string;
       mimeType?: string;
@@ -52,7 +67,7 @@ export const mediaController = {
       throw new AppError(400, "Se requieren fileName, mimeType y sizeBytes");
     }
     const data = await documentService.generateDocumentUploadUrl(
-      userId,
+      user.userId,
       body.fileName,
       body.mimeType,
       body.sizeBytes,
@@ -65,7 +80,7 @@ export const mediaController = {
    * (HeadObject) y registramos en DB.
    * Body JSON: { objectKey, fileName, mimeType, sizeBytes }
    */
-  confirmDocumentUpload: async (request: Request, userId: string) => {
+  confirmDocumentUpload: async (request: Request, user: any) => {
     const body = (await request.json()) as {
       objectKey?: string;
       fileName?: string;
@@ -75,12 +90,16 @@ export const mediaController = {
     if (!body.objectKey || !body.fileName || !body.mimeType || typeof body.sizeBytes !== "number") {
       throw new AppError(400, "Se requieren objectKey, fileName, mimeType y sizeBytes");
     }
+    
+    const { ipAddress, userAgent } = getContextFromRequest(request);
     const data = await documentService.confirmDocumentUpload(
-      userId,
+      user,
       body.objectKey,
       body.fileName,
       body.mimeType,
       body.sizeBytes,
+      ipAddress,
+      userAgent
     );
     return { data };
   },
@@ -94,8 +113,9 @@ export const mediaController = {
     const data = await documentService.getDocumentAccessUrl(actor, objectKey, forceDownload);
     return { data };
   },
-  deleteDocument: async (userId: string, userSub: string, userRole: string, objectKey: string) => {
-    const data = await documentService.deleteDocument(userId, userSub, userRole, objectKey);
+  deleteDocument: async (request: Request, user: any, objectKey: string) => {
+    const { ipAddress, userAgent } = getContextFromRequest(request);
+    const data = await documentService.deleteDocument(user, objectKey, ipAddress, userAgent);
     return { data };
   },
   getCurrentAvatar: async (userId: string) => {

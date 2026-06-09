@@ -18,4 +18,23 @@ if [ -n "${OCI_CONFIG_SOURCE_FILE:-}" ] && [ -n "${OCI_CONFIG_FILE_PATH:-}" ]; t
   sed "s#^key_file=.*#key_file=/opt/cima/secrets/oci/$key_name#" "$OCI_CONFIG_SOURCE_FILE" > "$OCI_CONFIG_FILE_PATH"
 fi
 
+# Detect if the container is running as a worker
+is_worker=false
+if [ "${CONTAINER_MODE:-}" = "worker" ]; then
+  is_worker=true
+fi
+
+for arg in "$@"; do
+  case "$arg" in
+    *worker*|*cleanup*)
+      is_worker=true
+      ;;
+  esac
+done
+
+if [ "$is_worker" = "false" ] && [ -n "${DATABASE_URL:-}" ]; then
+  echo "Ejecutando aprovisionamiento de base de datos..."
+  pnpm db:push
+fi
+
 exec "$@"

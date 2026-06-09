@@ -161,13 +161,15 @@ export const documentService = {
   },
 
   confirmDocumentUpload: async (
-    userId: string,
+    actor: { userId: string; sub: string; role: string; email: string },
     objectKey: string,
     fileName: string,
     mimeType: string,
     sizeBytes: number,
+    ipAddress?: string,
+    userAgent?: string,
   ) => {
-    if (!objectKey.startsWith(`documents/${userId}/`)) {
+    if (!objectKey.startsWith(`documents/${actor.userId}/`)) {
       throw new AppError(403, "El objectKey no pertenece a este usuario");
     }
     const storedFileName = sanitizeStoredFileName(fileName);
@@ -219,7 +221,7 @@ export const documentService = {
     }
 
     await db.insert(mediaAssets).values({
-      userId,
+      userId: actor.userId,
       kind: "document",
       avatarVersion: null,
       bucket: "private",
@@ -227,6 +229,19 @@ export const documentService = {
       originalName: storedFileName,
       mimeType,
       sizeBytes: meta.sizeBytes,
+    });
+
+    const { createAuditRepository } = await import("./repository/audit.repository");
+    await createAuditRepository(db).createAuditLog({
+      actorSub: actor.sub,
+      actorEmail: actor.email,
+      actorRole: actor.role as any,
+      action: "file.uploaded",
+      resourceType: "file",
+      resourceId: objectKey,
+      ipAddress: ipAddress || "",
+      userAgent: userAgent || "",
+      details: { originalName: storedFileName, mimeType, sizeBytes: meta.sizeBytes },
     });
 
     return { objectKey };
@@ -271,10 +286,13 @@ export const documentService = {
     return { url, expiresInSeconds: 300 };
   },
 
-  deleteDocumentForCollabCommand: async (objectKey: string) => {
+  deleteDocumentForCollabCommand: async (
+    objectKey: string,
+    actor?: { userId: string; sub: string; role: string; email: string }
+  ) => {
     assertCollabObjectKey(objectKey);
     const [asset] = await db
-      .select({ id: mediaAssets.id })
+      .select({ id: mediaAssets.id, originalName: mediaAssets.originalName })
       .from(mediaAssets)
       .where(and(eq(mediaAssets.objectKey, objectKey), eq(mediaAssets.kind, "document")))
       .limit(1);
@@ -292,12 +310,32 @@ export const documentService = {
       await db.delete(mediaAssets).where(eq(mediaAssets.id, asset.id));
     }
 
+    if (actor) {
+      const { createAuditRepository } = await import("./repository/audit.repository");
+      await createAuditRepository(db).createAuditLog({
+        actorSub: actor.sub,
+        actorEmail: actor.email,
+        actorRole: actor.role as any,
+        action: "file.deleted",
+        resourceType: "file",
+        resourceId: objectKey,
+        ipAddress: "",
+        userAgent: "",
+        details: { originalName: asset?.originalName || objectKey, trigger: "collab_command" },
+      });
+    }
+
     return { deleted: true };
   },
 
-  deleteDocument: async (userId: string, userSub: string, userRole: string, objectKey: string) => {
+  deleteDocument: async (
+    actor: { userId: string; sub: string; role: string; email: string },
+    objectKey: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) => {
     const [asset] = await db
-      .select({ id: mediaAssets.id, userId: mediaAssets.userId })
+      .select({ id: mediaAssets.id, userId: mediaAssets.userId, originalName: mediaAssets.originalName })
       .from(mediaAssets)
       .where(and(eq(mediaAssets.objectKey, objectKey), eq(mediaAssets.kind, "document")))
       .limit(1);
@@ -306,8 +344,8 @@ export const documentService = {
       throw new AppError(404, "Documento no encontrado");
     }
     
-    const isOwner = asset.userId === userId || asset.userId === userSub;
-    const isAdmin = userRole === "admin";
+    const isOwner = asset.userId === actor.userId || asset.userId === actor.sub;
+    const isAdmin = actor.role === "admin";
     const allowed = isOwner || isAdmin;
 
     if (!allowed) {
@@ -316,6 +354,52 @@ export const documentService = {
 
     await ociStorage.deleteObject(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
     await db.delete(mediaAssets).where(eq(mediaAssets.id, asset.id));
+
+    const { createAuditRepository } = await import("./repository/audit.repository");
+    await createAuditRepository(db).createAuditLog({
+      actorSub: actor.sub,
+      actorEmail: actor.email,
+      actorRole: actor.role as any,
+      action: "file.deleted",
+      resourceType: "file",
+      resourceId: objectKey,
+      ipAddress: ipAddress || "",
+      userAgent: userAgent || "",
+      details: { originalName: asset.originalName },
+    });
+
     return { deleted: true };
+  },
+
+  anonymizeUserPII: async (userSub: string) => {
+    const assets = await db
+      .select({ id: mediaAssets.id, bucket: mediaAssets.bucket, objectKey: mediaAssets.objectKey })
+      .from(mediaAssets)
+      .where(eq(mediaAssets.userId, userSub));
+
+    for (const asset of assets) {
+      try {
+        const bucketName =
+          asset.bucket === "public"
+            ? env.OCI_BUCKET_AVATARS_PUBLIC
+            : env.OCI_BUCKET_DOCS_PRIVATE;
+        await ociStorage.deleteObject(bucketName, asset.objectKey);
+      } catch (err) {
+        logger.error({ err, assetId: asset.id, objectKey: asset.objectKey }, "Error deleting object from OCI during PII clean");
+      }
+    }
+
+    if (assets.length > 0) {
+      await db.delete(mediaAssets).where(eq(mediaAssets.userId, userSub));
+    }
+
+    const { auditLogs } = await import("../../db/schema");
+    const anonEmail = `anon-${userSub}@cima.internal`;
+    await db
+      .update(auditLogs)
+      .set({ actorEmail: anonEmail })
+      .where(eq(auditLogs.actorSub, userSub));
+
+    logger.info({ userSub }, "[documentService] PII cleanup complete for crm-media");
   },
 };

@@ -1,3 +1,4 @@
 allowBuilds:
+  '@sebascarvajal11/cima-contracts': true
   esbuild: true
   sharp: true

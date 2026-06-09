@@ -2,10 +2,12 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app";
 import { env } from "./config/env";
 import { getLogger } from "./shared/logger";
-import { closeRedisConnections } from "./shared/redis";
+import { initRedis, closeRedisConnections } from "./shared/redis";
 import { startMediaCommandWorker, stopMediaCommandWorker } from "./workers/media-command.worker";
 
 const logger = getLogger();
+
+if (process.env.REDIS_URL) initRedis(process.env.REDIS_URL);
 
 void startMediaCommandWorker().catch((err) =>
   logger.error({ err, topic: "mod-media" }, "Media command worker failed to start"),

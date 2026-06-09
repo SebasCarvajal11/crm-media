@@ -2,6 +2,7 @@ import { Readable } from "node:stream";
 import { buffer as streamToBuffer } from "node:stream/consumers";
 import { randomUUID } from "node:crypto";
 import * as os from "oci-objectstorage";
+import { withRetry } from "@sebascarvajal11/cima-contracts";
 import { getNamespace, objectStorageEndpoint, client } from "./oci-client";
 import { beforeParCreate } from "./oci-par-prune";
 import { env } from "../../config/env";
@@ -9,14 +10,16 @@ import { env } from "../../config/env";
 export const ociStorage = {
   uploadPublicAvatar: async (key: string, body: Buffer, contentType: string) => {
     const namespace = await getNamespace();
-    await client.putObject({
-      namespaceName: namespace,
-      bucketName: env.OCI_BUCKET_AVATARS_PUBLIC,
-      objectName: key,
-      putObjectBody: body,
-      contentType,
-      contentLength: body.length,
-    });
+    await withRetry(async () => {
+      await client.putObject({
+        namespaceName: namespace,
+        bucketName: env.OCI_BUCKET_AVATARS_PUBLIC,
+        objectName: key,
+        putObjectBody: body,
+        contentType,
+        contentLength: body.length,
+      });
+    }, { maxAttempts: 3, delayMs: 150 });
     return `${objectStorageEndpoint}/n/${namespace}/b/${env.OCI_BUCKET_AVATARS_PUBLIC}/o/${encodeURIComponent(key)}`;
   },
 
@@ -27,14 +30,16 @@ export const ociStorage = {
 
   uploadPrivateDocument: async (key: string, body: Buffer, contentType: string) => {
     const namespace = await getNamespace();
-    await client.putObject({
-      namespaceName: namespace,
-      bucketName: env.OCI_BUCKET_DOCS_PRIVATE,
-      objectName: key,
-      putObjectBody: body,
-      contentType,
-      contentLength: body.length,
-    });
+    await withRetry(async () => {
+      await client.putObject({
+        namespaceName: namespace,
+        bucketName: env.OCI_BUCKET_DOCS_PRIVATE,
+        objectName: key,
+        putObjectBody: body,
+        contentType,
+        contentLength: body.length,
+      });
+    }, { maxAttempts: 3, delayMs: 150 });
     return key;
   },
 
@@ -43,12 +48,14 @@ export const ociStorage = {
     const objects: string[] = [];
     let start: string | undefined;
     do {
-      const response = await client.listObjects({
-        namespaceName: namespace,
-        bucketName,
-        prefix,
-        start,
-      });
+      const response = await withRetry(async () => {
+        return await client.listObjects({
+          namespaceName: namespace,
+          bucketName,
+          prefix,
+          start,
+        });
+      }, { maxAttempts: 3, delayMs: 150 });
       for (const item of response.listObjects?.objects ?? []) {
         if (item.name) objects.push(item.name);
       }
@@ -59,27 +66,31 @@ export const ociStorage = {
 
   deleteObject: async (bucketName: string, key: string) => {
     const namespace = await getNamespace();
-    await client.deleteObject({
-      namespaceName: namespace,
-      bucketName,
-      objectName: key,
-    });
+    await withRetry(async () => {
+      await client.deleteObject({
+        namespaceName: namespace,
+        bucketName,
+        objectName: key,
+      });
+    }, { maxAttempts: 3, delayMs: 150 });
   },
 
   createPrivateDocumentUrl: async (key: string, forceDownload = false) => {
     const namespace = await getNamespace();
     await beforeParCreate(env.OCI_BUCKET_DOCS_PRIVATE);
     const expiresAt = new Date(Date.now() + env.DOC_PAR_TTL_SECONDS * 1000);
-    const par = await client.createPreauthenticatedRequest({
-      namespaceName: namespace,
-      bucketName: env.OCI_BUCKET_DOCS_PRIVATE,
-      createPreauthenticatedRequestDetails: {
-        name: `doc-read-${randomUUID()}`,
-        objectName: key,
-        accessType: os.models.CreatePreauthenticatedRequestDetails.AccessType.ObjectRead,
-        timeExpires: expiresAt,
-      },
-    });
+    const par = await withRetry(async () => {
+      return await client.createPreauthenticatedRequest({
+        namespaceName: namespace,
+        bucketName: env.OCI_BUCKET_DOCS_PRIVATE,
+        createPreauthenticatedRequestDetails: {
+          name: `doc-read-${randomUUID()}`,
+          objectName: key,
+          accessType: os.models.CreatePreauthenticatedRequestDetails.AccessType.ObjectRead,
+          timeExpires: expiresAt,
+        },
+      });
+    }, { maxAttempts: 3, delayMs: 150 });
     const accessUri = par.preauthenticatedRequest?.accessUri;
     if (!accessUri) throw new Error("OCI no retorno accessUri para PAR");
     const filename = key.split("/").at(-1) ?? "document";
@@ -93,16 +104,18 @@ export const ociStorage = {
     const namespace = await getNamespace();
     await beforeParCreate(bucket);
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
-    const par = await client.createPreauthenticatedRequest({
-      namespaceName: namespace,
-      bucketName: bucket,
-      createPreauthenticatedRequestDetails: {
-        name: `upload-${randomUUID()}`,
-        objectName: key,
-        accessType: os.models.CreatePreauthenticatedRequestDetails.AccessType.ObjectWrite,
-        timeExpires: expiresAt,
-      },
-    });
+    const par = await withRetry(async () => {
+      return await client.createPreauthenticatedRequest({
+        namespaceName: namespace,
+        bucketName: bucket,
+        createPreauthenticatedRequestDetails: {
+          name: `upload-${randomUUID()}`,
+          objectName: key,
+          accessType: os.models.CreatePreauthenticatedRequestDetails.AccessType.ObjectWrite,
+          timeExpires: expiresAt,
+        },
+      });
+    }, { maxAttempts: 3, delayMs: 150 });
     const accessUri = par.preauthenticatedRequest?.accessUri;
     if (!accessUri) throw new Error("OCI no retorno accessUri para PAR de escritura");
     return `${objectStorageEndpoint}${accessUri}`;
@@ -110,11 +123,13 @@ export const ociStorage = {
 
   getObjectBuffer: async (bucketName: string, key: string): Promise<Buffer> => {
     const namespace = await getNamespace();
-    const response = await client.getObject({
-      namespaceName: namespace,
-      bucketName,
-      objectName: key,
-    });
+    const response = await withRetry(async () => {
+      return await client.getObject({
+        namespaceName: namespace,
+        bucketName,
+        objectName: key,
+      });
+    }, { maxAttempts: 3, delayMs: 150 });
     const body = response.value;
     if (!body) throw new Error("OCI getObject sin cuerpo");
     const stream = body instanceof Readable ? body : Readable.from(body as AsyncIterable<Uint8Array>);
@@ -124,11 +139,13 @@ export const ociStorage = {
   verifyObjectExists: async (bucket: string, key: string): Promise<boolean> => {
     const namespace = await getNamespace();
     try {
-      await client.headObject({
-        namespaceName: namespace,
-        bucketName: bucket,
-        objectName: key,
-      });
+      await withRetry(async () => {
+        await client.headObject({
+          namespaceName: namespace,
+          bucketName: bucket,
+          objectName: key,
+        });
+      }, { maxAttempts: 3, delayMs: 150 });
       return true;
     } catch {
       return false;
@@ -138,11 +155,13 @@ export const ociStorage = {
   getObjectMetadata: async (bucket: string, key: string): Promise<{ sizeBytes: number; mimeType: string } | null> => {
     const namespace = await getNamespace();
     try {
-      const response = await client.headObject({
-        namespaceName: namespace,
-        bucketName: bucket,
-        objectName: key,
-      });
+      const response = await withRetry(async () => {
+        return await client.headObject({
+          namespaceName: namespace,
+          bucketName: bucket,
+          objectName: key,
+        });
+      }, { maxAttempts: 3, delayMs: 150 });
       return {
         sizeBytes: response.contentLength ?? 0,
         mimeType: response.contentType ?? "application/octet-stream",
@@ -154,17 +173,19 @@ export const ociStorage = {
 
   copyObject: async (sourceBucket: string, targetBucket: string, sourceKey: string, targetKey: string) => {
     const namespace = await getNamespace();
-    await client.copyObject({
-      namespaceName: namespace,
-      bucketName: sourceBucket,
-      copyObjectDetails: {
-        sourceObjectName: sourceKey,
-        destinationRegion: env.OCI_REGION,
-        destinationNamespace: namespace,
-        destinationBucket: targetBucket,
-        destinationObjectName: targetKey,
-      },
-    });
+    await withRetry(async () => {
+      await client.copyObject({
+        namespaceName: namespace,
+        bucketName: sourceBucket,
+        copyObjectDetails: {
+          sourceObjectName: sourceKey,
+          destinationRegion: env.OCI_REGION,
+          destinationNamespace: namespace,
+          destinationBucket: targetBucket,
+          destinationObjectName: targetKey,
+        },
+      });
+    }, { maxAttempts: 3, delayMs: 150 });
   },
 
   getRuntimeNamespace: getNamespace,
