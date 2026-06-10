@@ -12,6 +12,7 @@
     "pii:clean": "tsx src/scripts/pii-clean.ts",
     "worker:media-commands": "tsx src/workers/media-command.worker.ts",
     "worker:quarantine-scan": "tsx src/workers/quarantine-scan.worker.ts",
+    "db:bootstrap": "tsx src/scripts/bootstrap.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "tsx src/scripts/ensure-db-schema.ts",
     "openapi:check": "node scripts/validate-openapi.mjs",
