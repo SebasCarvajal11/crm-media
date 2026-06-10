@@ -52,10 +52,13 @@ export const createApp = () => {
   const publicRoutes = new Hono<AppEnv>();
 
   publicRoutes.get("/api/v1/health", async (c) => {
+    const ociHealth = env.OCI_HEALTHCHECK_ENABLED
+      ? checkOci(ociClient)
+      : Promise.resolve({ status: "ok" as const, latencyMs: 0 });
     const [pg, redis, oci, clamav] = await Promise.all([
       checkPostgres(pool),
       checkRedis(getRedisConnection()),
-      checkOci(ociClient),
+      ociHealth,
       checkClamav(env.CLAMAV_HOST, env.CLAMAV_PORT),
     ]);
 

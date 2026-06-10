@@ -17,6 +17,10 @@ const envSchema = z.object({
   OCI_NAMESPACE: z.string().min(1),
   OCI_BUCKET_AVATARS_PUBLIC: z.string().min(1),
   OCI_BUCKET_DOCS_PRIVATE: z.string().min(1),
+  OCI_HEALTHCHECK_ENABLED: z
+    .union([z.literal("true"), z.literal("false"), z.literal("1"), z.literal("0")])
+    .default("true")
+    .transform((v) => v === "true" || v === "1"),
   CLAMAV_HOST: z.string().default("clamav-scanner"),
   CLAMAV_PORT: z.coerce.number().default(3310),
   /** Timeout de escaneo (ms); archivos hasta ~25 MB. */
