@@ -1,10 +1,18 @@
 import { Client } from "pg";
-import { env } from "../config/env";
-import { pgConnectionConfig } from "../db/pg-config";
 import { ensureAuditLogPartitions } from "../db/scripts/ensure-audit-log-partitions";
 
-const client = new Client(pgConnectionConfig);
-const dbSchema = env.DB_SCHEMA;
+const databaseUrl = process.env.DATABASE_URL;
+const dbSchema = process.env.DB_SCHEMA;
+
+if (!databaseUrl || dbSchema !== "schema_media") {
+  throw new Error("DATABASE_URL y DB_SCHEMA=schema_media son requeridos para preparar crm-media");
+}
+
+const client = new Client({
+  connectionString: databaseUrl,
+  application_name: "crm_media_schema_setup",
+  options: `-c search_path=${dbSchema}`,
+});
 
 try {
   await client.connect();
