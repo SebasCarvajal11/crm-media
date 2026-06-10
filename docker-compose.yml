@@ -114,7 +114,3 @@ services:
         read_only: true
     networks:
       - shared_backplane
-
-networks:
-  shared_backplane:
-    name: cima-crm-local-backplane
