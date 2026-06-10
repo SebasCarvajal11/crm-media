@@ -6,7 +6,7 @@
   "description": "Media storage and access service for the CIMA CRM multi-repo platform.",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "pnpm --prefix cima-contracts build && tsc",
     "start": "tsx src/server.ts",
     "oci:verify": "tsx src/scripts/verify-oci.ts",
     "pii:clean": "tsx src/scripts/pii-clean.ts",
@@ -30,7 +30,7 @@
   "homepage": "https://github.com/SebasCarvajal11/crm-media#readme",
   "dependencies": {
     "@hono/node-server": "^1.19.14",
-    "@sebascarvajal11/cima-contracts": "^0.2.0",
+    "@sebascarvajal11/cima-contracts": "workspace:*",
     "clamscan": "^2.4.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",

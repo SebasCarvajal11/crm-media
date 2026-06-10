@@ -101,8 +101,8 @@ To ensure zero-downtime deployments where old and new versions of a service run 
 
 ## Observabilidad
 
-- **Health**: `GET /health` — estado de DB, Redis, OCI y ClamAV. Devuelve `{ status, version, uptimeSec, dependencies }`.
-- **Métricas**: `GET /metrics` — Prometheus text/plain (prom-client). Incluye:
+- **Health**: `GET /api/v1/health` — estado de DB, Redis, OCI y ClamAV. Devuelve `{ status, version, uptimeSec, dependencies }`.
+- **Métricas**: `GET /api/v1/metrics` — Prometheus text/plain (prom-client). Incluye:
   - `http_requests_total`, `http_request_duration_seconds`, `http_errors_5xx_total`
   - `stream_consumer_group_depth{stream, group}` — PEL del consumer group de `stream:collab.media-commands` (actualizado cada 15 s via XPENDING)
   - Métricas de Node.js por defecto (heap, event loop lag, GC)

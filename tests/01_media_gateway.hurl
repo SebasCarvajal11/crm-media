@@ -14,7 +14,7 @@ HTTP 200
 worker_token: jsonpath "$.data.access_token"
 
 # 2. Get Media OpenAPI Specification
-GET {{base_url}}/docs/media/openapi.yaml
+GET {{base_url}}/api/v1/docs/media/openapi.yaml
 HTTP 200
 
 # 3. Get Current Avatar (Should return 404 since the worker has no avatar yet)

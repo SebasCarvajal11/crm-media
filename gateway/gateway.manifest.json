@@ -3,36 +3,36 @@
   "version": "1.0.0",
   "endpoints": [
     {
-      "endpoint": "/docs/media/openapi.yaml",
+      "endpoint": "/api/v1/docs/media/openapi.yaml",
       "method": "GET",
-      "backend_url": "/openapi.yaml",
+      "backend_url": "/api/v1/openapi.yaml",
       "public": true,
-      "openapi_ref": "GET /openapi.yaml"
+      "openapi_ref": "GET /api/v1/openapi.yaml"
     },
     {
-      "endpoint": "/docs/media/v1/openapi.yaml",
+      "endpoint": "/api/v1/docs/media/v1/openapi.yaml",
       "method": "GET",
-      "backend_url": "/openapi.yaml",
+      "backend_url": "/api/v1/openapi.yaml",
       "public": true,
-      "openapi_ref": "GET /openapi.yaml"
+      "openapi_ref": "GET /api/v1/openapi.yaml"
     },
     {
       "endpoint": "/api/v1/media/avatars",
       "method": "POST",
       "backend_url": "/api/v1/media/avatars",
-      "openapi_ref": "POST /media/avatars"
+      "openapi_ref": "POST /api/v1/media/avatars"
     },
     {
       "endpoint": "/api/v1/media/documents/upload-url",
       "method": "POST",
       "backend_url": "/api/v1/media/documents/upload-url",
-      "openapi_ref": "POST /media/documents/upload-url"
+      "openapi_ref": "POST /api/v1/media/documents/upload-url"
     },
     {
       "endpoint": "/api/v1/media/documents/confirm",
       "method": "POST",
       "backend_url": "/api/v1/media/documents/confirm",
-      "openapi_ref": "POST /media/documents/confirm"
+      "openapi_ref": "POST /api/v1/media/documents/confirm"
     },
     {
       "endpoint": "/api/v1/media/documents",
@@ -41,7 +41,7 @@
       "input_query_strings": [
         "objectKey"
       ],
-      "openapi_ref": "DELETE /media/documents"
+      "openapi_ref": "DELETE /api/v1/media/documents"
     },
     {
       "endpoint": "/api/v1/media/documents/access",
@@ -51,13 +51,13 @@
         "objectKey",
         "download"
       ],
-      "openapi_ref": "GET /media/documents/access"
+      "openapi_ref": "GET /api/v1/media/documents/access"
     },
     {
       "endpoint": "/api/v1/media/avatars/current",
       "method": "GET",
       "backend_url": "/api/v1/media/avatars/current",
-      "openapi_ref": "GET /media/avatars/current"
+      "openapi_ref": "GET /api/v1/media/avatars/current"
     },
     {
       "endpoint": "/api/v1/media/avatars/users",
@@ -66,7 +66,7 @@
       "input_query_strings": [
         "ids"
       ],
-      "openapi_ref": "GET /media/avatars/users"
+      "openapi_ref": "GET /api/v1/media/avatars/users"
     }
   ]
 }

@@ -3,6 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
+        PNPM_VERSION: ${PNPM_VERSION:-11.1.1}
+    init: true
     restart: unless-stopped
     env_file:
       - .env
@@ -15,8 +19,8 @@ services:
       CLAMAV_HOST: clamav-scanner
       CLAMAV_PORT: 3310
       TRUST_GATEWAY_JWT_HEADERS: "false"
-      JWKS_URI: ${JWKS_URI:-http://crm-auth:3000/.well-known/jwks.json}
-      COLLAB_JWKS_URI: ${COLLAB_JWKS_URI:-http://crm-collab:3001/.well-known/service-jwks.json}
+      JWKS_URI: http://crm-auth:3000/api/v1/.well-known/jwks.json
+      COLLAB_JWKS_URI: http://crm-collab:3001/api/v1/.well-known/service-jwks.json
       COLLAB_JWT_ISS: ${COLLAB_JWT_ISS:-crm-collab}
       OCI_CONFIG_SOURCE_FILE: /opt/cima/secrets/oci/oci.config
       OCI_CONFIG_FILE_PATH: /tmp/cima-oci/oci.config
@@ -45,6 +49,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
+        PNPM_VERSION: ${PNPM_VERSION:-11.1.1}
+    init: true
     restart: unless-stopped
     command: ["pnpm", "worker:media-commands"]
     env_file:
@@ -56,7 +64,7 @@ services:
       REDIS_URL: redis://redis:6379
       CLAMAV_HOST: clamav-scanner
       CLAMAV_PORT: 3310
-      COLLAB_JWKS_URI: ${COLLAB_JWKS_URI:-http://crm-collab:3001/.well-known/service-jwks.json}
+      COLLAB_JWKS_URI: http://crm-collab:3001/api/v1/.well-known/service-jwks.json
       COLLAB_JWT_ISS: ${COLLAB_JWT_ISS:-crm-collab}
       OCI_CONFIG_SOURCE_FILE: /opt/cima/secrets/oci/oci.config
       OCI_CONFIG_FILE_PATH: /tmp/cima-oci/oci.config
@@ -79,6 +87,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
+        PNPM_VERSION: ${PNPM_VERSION:-11.1.1}
+    init: true
     restart: unless-stopped
     command: ["pnpm", "worker:quarantine-scan"]
     env_file:

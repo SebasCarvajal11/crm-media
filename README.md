@@ -41,9 +41,9 @@ pnpm dev              # servidor con hot-reload en :3002
 
 Endpoints útiles:
 
-- Health: `http://localhost:3002/health` (incluye estado de OCI y ClamAV)
-- Métricas: `http://localhost:3002/metrics`
-- OpenAPI: `http://localhost:3002/openapi.yaml`
+- Health: `http://localhost:3002/api/v1/health` (incluye estado de OCI y ClamAV)
+- Métricas: `http://localhost:3002/api/v1/metrics`
+- OpenAPI: `http://localhost:3002/api/v1/openapi.yaml`
 
 Workers (procesos separados):
 

@@ -51,7 +51,7 @@ export const createApp = () => {
   // --- (a) Grupo de Rutas Públicas ---
   const publicRoutes = new Hono<AppEnv>();
 
-  publicRoutes.get("/health", async (c) => {
+  publicRoutes.get("/api/v1/health", async (c) => {
     const [pg, redis, oci, clamav] = await Promise.all([
       checkPostgres(pool),
       checkRedis(getRedisConnection()),
@@ -68,14 +68,14 @@ export const createApp = () => {
     return c.json(body, status);
   });
 
-  publicRoutes.get("/metrics", metricsEndpointHandler(serviceMetrics.registry));
+  publicRoutes.get("/api/v1/metrics", metricsEndpointHandler(serviceMetrics.registry));
 
-  publicRoutes.route("/", createOpenApiRoutes());
+  publicRoutes.route("/api/v1", createOpenApiRoutes());
   app.route("/", publicRoutes);
 
   // --- (b) Grupo de Rutas Internas ---
   const internalRoutes = new Hono<AppEnv>();
-  internalRoutes.route("/", createGatewayRoutes());
+  internalRoutes.route("/api/v1", createGatewayRoutes());
 
   // Ops / DLQ routes (internal only)
   const ops = new Hono<AppEnv>();
@@ -122,7 +122,7 @@ export const createApp = () => {
     }
   });
 
-  internalRoutes.route("/_ops", ops);
+  internalRoutes.route("/api/v1/_ops", ops);
   app.route("/", internalRoutes);
 
   // --- (c) Grupo de Rutas Autenticadas (requieren JWT válido) ---
