@@ -81,6 +81,7 @@ jobs:
           DB_SCHEMA: schema_media
           PORT: "3002"
           NODE_ENV: test
+          TRUST_GATEWAY_JWT_HEADERS: "true"
           OCI_CONFIG_FILE_PATH: ${{ runner.temp }}/oci/oci.config
           OCI_CONFIG_PROFILE: DEFAULT
           CLAMAV_HOST: 127.0.0.1
