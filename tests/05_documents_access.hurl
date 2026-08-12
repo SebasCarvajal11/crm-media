@@ -59,30 +59,24 @@ HTTP 200
 [Asserts]
 jsonpath "$.data.url" exists
 
-# --- Admin: Obtiene URL de acceso ---
+# --- Admin no puede acceder a un documento ajeno ---
 GET {{base_url}}/api/v1/media/documents/access?objectKey={{access_object_key}}
 Authorization: Bearer {{admin_token}}
-HTTP 200
-[Asserts]
-jsonpath "$.data.url" exists
+HTTP 403
 
-# --- Client: Obtiene URL de descarga ---
+# --- Client no puede acceder a un documento ajeno ---
 GET {{base_url}}/api/v1/media/documents/access?objectKey={{access_object_key}}&download=true
 Authorization: Bearer {{client_token}}
-HTTP 200
-[Asserts]
-jsonpath "$.data.url" exists
+HTTP 403
 
-# --- Documento inexistente (404) ---
+# --- Un documento ajeno no es accesible aunque no exista ---
 GET {{base_url}}/api/v1/media/documents/access?objectKey=inexistente/999999.pdf
 Authorization: Bearer {{admin_token}}
-HTTP 404
-[Asserts]
-jsonpath "$.error" exists
+HTTP 403
 
 # --- Parametros invalidos: falta objectKey ---
 GET {{base_url}}/api/v1/media/documents/access
 Authorization: Bearer {{admin_token}}
 HTTP 400
 [Asserts]
-jsonpath "$.error" exists
+jsonpath "$.message" exists

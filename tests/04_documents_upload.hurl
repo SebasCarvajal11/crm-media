@@ -93,9 +93,9 @@ Content-Type: application/json
   "mimeType": "application/pdf",
   "sizeBytes": 999999999
 }
-HTTP 400
+HTTP 413
 [Asserts]
-jsonpath "$.error" exists
+jsonpath "$.message" exists
 
 # --- Validacion de tipo MIME invalido ---
 POST {{base_url}}/api/v1/media/documents/upload-url
@@ -108,4 +108,4 @@ Content-Type: application/json
 }
 HTTP 400
 [Asserts]
-jsonpath "$.error" exists
+jsonpath "$.message" exists

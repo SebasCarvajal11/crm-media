@@ -34,24 +34,14 @@ worker_id: jsonpath "$.data.user.id"
 # Primero subir avatares para tener datos
 POST {{base_url}}/api/v1/media/avatars
 Authorization: Bearer {{admin_token}}
-Content-Type: multipart/form-data; boundary=----FormBoundary
-------FormBoundary
-Content-Disposition: form-data; name="file"; filename="avatar_admin.png"
-Content-Type: image/png
-
-<test-files/test-image.png
-------FormBoundary--
+[MultipartFormData]
+file: file,test-files/test-image.png; image/png
 HTTP 201
 
 POST {{base_url}}/api/v1/media/avatars
 Authorization: Bearer {{worker_token}}
-Content-Type: multipart/form-data; boundary=----FormBoundary2
-------FormBoundary2
-Content-Disposition: form-data; name="file"; filename="avatar_worker.png"
-Content-Type: image/png
-
-<test-files/test-image.png
-------FormBoundary2--
+[MultipartFormData]
+file: file,test-files/test-image.png; image/png
 HTTP 201
 
 # --- Admin: Obtiene su propio avatar ---
@@ -80,7 +70,7 @@ jsonpath "$.data" isCollection
 POST {{base_url}}/api/v1/auth/login
 Content-Type: application/json
 {
-  "email": "contacto@restauranteelbuensabor.com",
+  "email": "marketing@tecnologiasavanzadas.co",
   "password": "Demo123!"
 }
 HTTP 200

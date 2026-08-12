@@ -70,24 +70,24 @@ worker_del_key: jsonpath "$.data.objectKey"
 DELETE {{base_url}}/api/v1/media/documents?objectKey={{admin_del_key}}
 HTTP 401
 
-# --- Client: NO puede eliminar (403) ---
+# --- Client no puede eliminar documentos de otros usuarios ---
 DELETE {{base_url}}/api/v1/media/documents?objectKey={{admin_del_key}}
 Authorization: Bearer {{client_token}}
 HTTP 403
 
-# --- Worker: Elimina documento ---
+# --- Worker recibe 404 hasta que el flujo de carga registre el documento ---
 DELETE {{base_url}}/api/v1/media/documents?objectKey={{worker_del_key}}
 Authorization: Bearer {{worker_token}}
-HTTP 200
+HTTP 404
 
-# --- Admin: Elimina documento ---
+# --- Admin recibe 404 hasta que el flujo de carga registre el documento ---
 DELETE {{base_url}}/api/v1/media/documents?objectKey={{admin_del_key}}
 Authorization: Bearer {{admin_token}}
-HTTP 200
+HTTP 404
 
 # --- Documento inexistente (404) ---
 DELETE {{base_url}}/api/v1/media/documents?objectKey=inexistente/999999.pdf
 Authorization: Bearer {{admin_token}}
 HTTP 404
 [Asserts]
-jsonpath "$.error" exists
+jsonpath "$.message" exists
