@@ -15,6 +15,11 @@ if [ -n "${OCI_CONFIG_SOURCE_FILE:-}" ] && [ -n "${OCI_CONFIG_FILE_PATH:-}" ]; t
     exit 1
   fi
 
+  if ! node -e 'const fs=require("node:fs"); const crypto=require("node:crypto"); crypto.createPrivateKey(fs.readFileSync(process.argv[1]));' "/opt/cima/secrets/oci/$key_name" 2>/dev/null; then
+    echo "La clave privada OCI no es válida: /opt/cima/secrets/oci/$key_name. Configure una clave PEM RSA válida antes de iniciar crm-media." >&2
+    exit 1
+  fi
+
   sed "s#^key_file=.*#key_file=/opt/cima/secrets/oci/$key_name#" "$OCI_CONFIG_SOURCE_FILE" > "$OCI_CONFIG_FILE_PATH"
 fi
 
