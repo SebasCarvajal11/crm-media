@@ -116,3 +116,9 @@ To ensure zero-downtime deployments where old and new versions of a service run 
 | `GATEWAY_TRUST_SECRET` / `gatewayTrustMiddleware` | 2026-05-15 | Eliminado; validación JWKS directa |
 | `MEDIA_COMMAND_SECRET` (HMAC) | 2026-06-01 | Reemplazado por JWT de servicio firmado con RSA desde `crm-collab` |
 | `crm-bff` como downstream | 2026-06-01 | `crm-bff` fue eliminado del stack |
+
+## Integration Change Gate
+
+- Project-file commands accept opaque service JWTs at the schema boundary and verify claims and signatures in the command worker.
+- Preserve `correlationId` in every Media response and publish an explicit failure response before moving a non-retryable command to DLQ.
+- Do not grant project-file authorization from path prefixes alone; Collaboration remains the authority for the project relationship.

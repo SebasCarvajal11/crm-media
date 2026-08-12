@@ -84,3 +84,9 @@ pnpm oci:verify     # conectividad OCI
 
 - OpenAPI: [`openapi/openapi.yaml`](./openapi/openapi.yaml)
 - Gateway manifest: [`gateway/gateway.manifest.json`](./gateway/gateway.manifest.json)
+
+## Integración con Collaboration
+
+Los binarios pertenecen a Media y el contexto de negocio pertenece a Collaboration. Para archivos de proyecto, Media solo procesa comandos firmados de `crm-collab` desde `stream:collab.media-commands` y responde en `stream:media.asset-responses` con el mismo `correlationId`.
+
+La firma es un JWT de servicio: el contrato valida su formato y el worker de Media verifica criptográficamente emisor, audiencia, propósito, correlación y `objectKey`. Los errores no recuperables se registran en la DLQ y producen una respuesta `file.command-failed` para evitar esperas silenciosas.
