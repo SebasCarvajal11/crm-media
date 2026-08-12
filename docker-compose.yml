@@ -28,6 +28,7 @@ services:
       MEDIA_RESPONSES_STREAM_KEY: stream:media.asset-responses
       MEDIA_COMMANDS_CONSUMER_GROUP: group:media.commands
       MEDIA_COMMANDS_DLQ_STREAM_KEY: stream:media.commands-dlq
+      MEDIA_COMMANDS_PENDING_IDLE_MS: 5000
     depends_on:
       postgres_db:
         condition: service_healthy
@@ -72,6 +73,7 @@ services:
       MEDIA_RESPONSES_STREAM_KEY: stream:media.asset-responses
       MEDIA_COMMANDS_CONSUMER_GROUP: group:media.commands
       MEDIA_COMMANDS_DLQ_STREAM_KEY: stream:media.commands-dlq
+      MEDIA_COMMANDS_PENDING_IDLE_MS: 5000
     depends_on:
       crm-media:
         condition: service_healthy
