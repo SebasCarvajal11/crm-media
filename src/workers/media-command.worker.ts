@@ -3,7 +3,7 @@ import { collabJwksClient } from "../config/jwks-client";
 import { documentService } from "../modules/media/document.service";
 import { AppError } from "../shared/middlewares/error-handler.middleware";
 import { getLogger, traceStorage } from "../shared/logger";
-import { closeRedisConnections, getRedisConnection, getRedisSubscriber } from "../shared/redis";
+import { closeRedisConnections, getRedisConnection, getRedisSubscriber, initRedis } from "../shared/redis";
 import { appendMediaCommandToDlq, streamFieldsToObject, startMediaDlqReplayer, stopMediaDlqReplayer } from "./media-command-dlq";
 import { startWorkerHealthcheck } from "../shared/worker-health";
 import { pool } from "../db/connection";
@@ -298,6 +298,7 @@ const isEntrypoint = process.argv[1]
   : false;
 
 if (isEntrypoint) {
+  if (process.env.REDIS_URL) initRedis(process.env.REDIS_URL);
   await startMediaCommandWorker();
   await startIdentityEventConsumer();
   startMediaDlqReplayer();

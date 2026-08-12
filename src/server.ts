@@ -3,15 +3,10 @@ import { createApp } from "./app";
 import { env } from "./config/env";
 import { getLogger } from "./shared/logger";
 import { initRedis, closeRedisConnections } from "./shared/redis";
-import { startMediaCommandWorker, stopMediaCommandWorker } from "./workers/media-command.worker";
 
 const logger = getLogger();
 
 if (process.env.REDIS_URL) initRedis(process.env.REDIS_URL);
-
-void startMediaCommandWorker().catch((err) =>
-  logger.error({ err, topic: "mod-media" }, "Media command worker failed to start"),
-);
 
 const serverRef = serve({
   fetch: createApp().fetch,
@@ -28,7 +23,6 @@ const shutdown = async (signal: string) => {
     serverRef.close((err) => (err ? reject(err) : resolve()));
   }).catch((err) => logger.error({ err, topic: "shutdown" }, "server.close"));
 
-  await stopMediaCommandWorker().catch((err) => logger.error({ err, topic: "shutdown" }, "mediaCommandWorker.stop"));
   await closeRedisConnections();
   logger.info({ topic: "shutdown" }, "mod-media finalizado");
 };
