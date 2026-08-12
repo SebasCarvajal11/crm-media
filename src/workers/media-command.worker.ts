@@ -3,7 +3,7 @@ import { collabJwksClient } from "../config/jwks-client";
 import { documentService } from "../modules/media/document.service";
 import { AppError } from "../shared/middlewares/error-handler.middleware";
 import { getLogger, traceStorage } from "../shared/logger";
-import { closeRedisConnections, getRedisConnection, getRedisSubscriber, initRedis } from "../shared/redis";
+import { closeRedisConnections, createRedisStreamConsumerConnection, getRedisConnection, initRedis } from "../shared/redis";
 import { appendMediaCommandToDlq, streamFieldsToObject, startMediaDlqReplayer, stopMediaDlqReplayer } from "./media-command-dlq";
 import { startWorkerHealthcheck } from "../shared/worker-health";
 import { pool } from "../db/connection";
@@ -32,13 +32,16 @@ const versionedSchemas = new Map([[1, mediaCommandSchema]]);
 // ── Consumer instance ─────────────────────────────────────────────────────────
 
 let consumer: RedisStreamConsumer<MediaCommand> | null = null;
+let consumerRedis: NonNullable<ReturnType<typeof createRedisStreamConsumerConnection>> | undefined;
 
 export async function startMediaCommandWorker(): Promise<void> {
-  const redis = getRedisSubscriber();
+  const redis = createRedisStreamConsumerConnection();
   if (!redis) {
     logger.warn({ topic: "media-command-worker" }, "Redis no disponible; worker deshabilitado");
     return;
   }
+
+  consumerRedis = redis;
 
   consumer = new RedisStreamConsumer<MediaCommand>({
     streamKey:        env.MEDIA_COMMANDS_STREAM_KEY,
@@ -67,6 +70,8 @@ export async function stopMediaCommandWorker(): Promise<void> {
     await consumer.stop(pub);
     consumer = null;
   }
+  await consumerRedis?.quit().catch(() => undefined);
+  consumerRedis = undefined;
 }
 
 // ── DLQ handler ───────────────────────────────────────────────────────────────

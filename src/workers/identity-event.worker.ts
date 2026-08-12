@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getRedisSubscriber, getRedisConnection } from "../shared/redis";
+import { createRedisStreamConsumerConnection, getRedisConnection } from "../shared/redis";
 import { env } from "../config/env";
 import { getLogger, traceStorage } from "../shared/logger";
 import { documentService } from "../modules/media/document.service";
@@ -26,13 +26,16 @@ const versionedSchemas = new Map([
 ]);
 
 let consumer: RedisStreamConsumer<AuthIdentityEvent> | null = null;
+let consumerRedis: NonNullable<ReturnType<typeof createRedisStreamConsumerConnection>> | undefined;
 
 export async function startIdentityEventConsumer(): Promise<void> {
-  const redis = getRedisSubscriber();
+  const redis = createRedisStreamConsumerConnection();
   if (!redis) {
     logger.info("[identity-event-consumer] Redis no disponible; consumer desactivado");
     return;
   }
+
+  consumerRedis = redis;
 
   consumer = new RedisStreamConsumer<AuthIdentityEvent>({
     streamKey:     STREAM_KEY,
@@ -61,6 +64,8 @@ export async function stopIdentityEventConsumer(): Promise<void> {
     await consumer.stop(pub);
     consumer = null;
   }
+  await consumerRedis?.quit().catch(() => undefined);
+  consumerRedis = undefined;
 }
 
 async function handleIdentityEvent(event: AuthIdentityEvent): Promise<void> {
