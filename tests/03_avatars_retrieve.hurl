@@ -4,7 +4,7 @@
 # Prueba los endpoints de obtencion de avatares:
 # - Obtiene avatar del usuario actual
 # - Obtiene avatar de otro usuario
-# - Avatar inexistente (404)
+# - Usuario sin avatar (respuesta vacía)
 # - Batch de avatares (multiples IDs)
 # ============================================================
 
@@ -65,7 +65,7 @@ HTTP 200
 [Asserts]
 jsonpath "$.data" isCollection
 
-# --- Avatar de usuario sin avatar (404 para nuevo usuario) ---
+# --- Usuario sin avatar (estado normal de perfil) ---
 # Login como client que no ha subido avatar
 POST {{base_url}}/api/v1/auth/login
 Content-Type: application/json
@@ -79,6 +79,7 @@ client_token: jsonpath "$.data.access_token"
 
 GET {{base_url}}/api/v1/media/avatars/current
 Authorization: Bearer {{client_token}}
-HTTP 404
+HTTP 200
 [Asserts]
-jsonpath "$.code" == "NOT_FOUND"
+jsonpath "$.data.version" == 0
+jsonpath "$.data.urls" isCollection

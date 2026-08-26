@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { and, eq, sql, inArray } from "drizzle-orm";
 import { db } from "../../db/connection";
 import { mediaAssets } from "../../db/schema";
-import { AppError, NotFoundError } from "../../shared/middlewares/error-handler.middleware";
+import { AppError } from "../../shared/middlewares/error-handler.middleware";
 import { detectFileType, imageMimes } from "../../shared/security/file-validation";
 import { scanBufferForVirus } from "../../shared/security/clamav";
 import { ociStorage } from "../../shared/storage/oci-storage";
@@ -121,7 +121,9 @@ export const avatarService = {
       .where(and(eq(mediaAssets.userId, userId), eq(mediaAssets.kind, "avatar")));
 
     const version = latestVersion[0]?.latest ?? 0;
-    if (version <= 0) throw new NotFoundError("El usuario no tiene avatar");
+    // No tener avatar es un estado normal del perfil, no un recurso inexistente
+    // excepcional. Una respuesta vacía evita que los clientes lo traten como error.
+    if (version <= 0) return { version: 0, urls: {} };
 
     const rows = await db
       .select({ objectKey: mediaAssets.objectKey })
