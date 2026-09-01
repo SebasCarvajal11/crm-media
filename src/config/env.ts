@@ -33,6 +33,8 @@ const envSchema = z.object({
   OCI_QUARANTINE_SCAN_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
   /** Tiempo mínimo que un objeto debe estar en cuarentena antes de escanear (evita uploads incompletos). */
   OCI_QUARANTINE_GRACE_MS: z.coerce.number().int().min(0).default(30_000),
+  /** Retención máxima para objetos que nunca llegaron a registrarse ni pudieron escanearse. */
+  OCI_QUARANTINE_MAX_AGE_MS: z.coerce.number().int().min(60_000).default(2 * 60 * 60 * 1000),
   REDIS_URL: z.string().url().optional(),
   MEDIA_COMMANDS_STREAM_KEY: z.string().default(STREAM_CONVENTIONS.streams.collab.mediaCommands),
   MEDIA_RESPONSES_STREAM_KEY: z.string().default(STREAM_CONVENTIONS.streams.media.assetResponses),

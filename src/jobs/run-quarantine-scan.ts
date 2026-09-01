@@ -5,7 +5,10 @@ import { scanBufferForVirus } from "../shared/security/clamav";
 import { ociStorage } from "../shared/storage/oci-storage";
 
 const logger = getLogger();
-const Q_PREFIX = "quarantine/documents/";
+// Both personal documents and collaboration files are uploaded to this bucket.
+// Scanning the whole quarantine namespace prevents abandoned project uploads
+// from bypassing retention and accumulating indefinitely.
+const Q_PREFIX = "quarantine/";
 
 export async function runQuarantineScan(): Promise<{ scanned: number; moved: number; infected: number }> {
   const namespace = await getNamespace();
@@ -35,8 +38,7 @@ export async function runQuarantineScan(): Promise<{ scanned: number; moved: num
 
       const ageMs = item.timeModified ? now - item.timeModified.getTime() : graceMs + 1;
       
-      const maxQuarantineAgeMs = 2 * 60 * 60 * 1000;
-      if (ageMs > maxQuarantineAgeMs) {
+      if (ageMs > env.OCI_QUARANTINE_MAX_AGE_MS) {
         logger.warn({ quarantineKey, topic: "quarantine-scan" }, "Objeto en cuarentena demasiado antiguo o corrupto. Eliminando");
         await ociStorage.deleteObject(bucket, quarantineKey);
         continue;

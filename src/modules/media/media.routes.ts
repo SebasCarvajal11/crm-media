@@ -5,6 +5,9 @@ import { authMiddleware, requireRole, AppEnv } from "../../shared/middlewares/au
 import { mediaController } from "./media.controller";
 import { env } from "../../config/env";
 
+const MAX_AVATAR_LOOKUP_IDS = 100;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export const mediaRoutes = new Hono<AppEnv>();
 
 mediaRoutes.use("*", authMiddleware);
@@ -32,6 +35,12 @@ mediaRoutes.get("/avatars/users", async (c) => {
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
+  if (ids.length > MAX_AVATAR_LOOKUP_IDS) {
+    throw new AppError(400, `Se permiten máximo ${MAX_AVATAR_LOOKUP_IDS} usuarios por consulta`);
+  }
+  if (ids.some((id) => !UUID_PATTERN.test(id))) {
+    throw new AppError(400, "ids debe contener UUIDs válidos");
+  }
   const payload = await mediaController.getCurrentAvatarsByUsers(ids);
   return c.json(payload);
 });
