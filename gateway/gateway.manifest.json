@@ -74,13 +74,6 @@
       "backend_url": "/api/v1/emails/send",
       "public": true,
       "openapi_ref": "POST /api/v1/emails/send"
-    },
-    {
-      "endpoint": "/api/v1/emails/send-template",
-      "method": "POST",
-      "backend_url": "/api/v1/emails/send-template",
-      "public": true,
-      "openapi_ref": "POST /api/v1/emails/send-template"
     }
   ]
 }
