@@ -4,5 +4,6 @@ export default defineConfig({
   test: {
     include: ["src/**/*.spec.ts"],
     exclude: ["dist/**", "node_modules/**"],
+    setupFiles: ["src/test/setup.ts"],
   },
 });
