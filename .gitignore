@@ -28,9 +28,10 @@ out/
 *.pem
 *.key
 oci.config
+oci.config.*
+.oci/
 
-# Database migrations exclusion
-drizzle/
+# Drizzle migrations are source-controlled and intentionally not ignored.
 
 # Logs
 logs/
@@ -63,3 +64,5 @@ Desktop.ini
 coverage/
 .nyc_output
 test-results/
+playwright-report/
+.turbo/

@@ -3,4 +3,5 @@ packages:
 allowBuilds:
   '@sebascarvajal11/cima-contracts': true
   esbuild: true
+  msgpackr-extract: true
   sharp: true

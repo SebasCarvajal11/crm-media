@@ -116,3 +116,31 @@ services:
         read_only: true
     networks:
       - shared_backplane
+
+  crm-media-email-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
+        PNPM_VERSION: ${PNPM_VERSION:-11.1.1}
+    init: true
+    restart: unless-stopped
+    command: ["pnpm", "worker:email"]
+    env_file:
+      - .env
+    environment:
+      CONTAINER_MODE: worker
+      DATABASE_URL: postgresql://media_user:${MEDIA_DB_PASSWORD:-mediapassword}@postgres_db:5432/crm_database
+      DB_SCHEMA: schema_media
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      crm-media:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ${OCI_CONFIG_HOST_DIR:?OCI_CONFIG_HOST_DIR is required}
+        target: ${OCI_CONFIG_CONTAINER_DIR:?OCI_CONFIG_CONTAINER_DIR is required}
+        read_only: true
+    networks:
+      - shared_backplane

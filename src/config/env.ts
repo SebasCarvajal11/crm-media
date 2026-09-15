@@ -73,7 +73,47 @@ const envSchema = z.object({
   JWKS_CACHE_TTL_MS: z.coerce.number().int().min(10_000).default(5 * 60 * 1000),
   /** Issuer claim esperado en los tokens. Opcional. */
   JWT_ISS: z.string().optional(),
+  /** Configuración del servicio de correo */
+  MAIL_TRANSPORT: z.enum(["smtp", "log"]).default("log"),
+  MAIL_FROM: z.string().default("CIMA CRM <soporte@cima.dev>"),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_SECURE: z
+    .union([z.literal("true"), z.literal("false"), z.literal("1"), z.literal("0")])
+    .default("false")
+    .transform((v) => v === "true" || v === "1"),
+  SMTP_REQUIRE_TLS: z
+    .union([z.literal("true"), z.literal("false"), z.literal("1"), z.literal("0")])
+    .default("true")
+    .transform((v) => v === "true" || v === "1"),
+  SMTP_TLS_SERVERNAME: z.string().optional(),
+  APP_PUBLIC_URL: z.string().default("http://localhost:5173"),
 }).superRefine((data, ctx) => {
+  if (data.MAIL_TRANSPORT === "smtp") {
+    if (!data.SMTP_HOST) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["SMTP_HOST"],
+        message: "SMTP_HOST es obligatorio si MAIL_TRANSPORT=smtp",
+      });
+    }
+    if (!data.SMTP_USER) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["SMTP_USER"],
+        message: "SMTP_USER es obligatorio si MAIL_TRANSPORT=smtp",
+      });
+    }
+    if (!data.SMTP_PASS) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["SMTP_PASS"],
+        message: "SMTP_PASS es obligatorio si MAIL_TRANSPORT=smtp",
+      });
+    }
+  }
   if (data.REDIS_URL && !data.COLLAB_JWKS_URI && !data.COLLAB_JWT_PUBLIC_KEY) {
     ctx.addIssue({
       code: "custom",

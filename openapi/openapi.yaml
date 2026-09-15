@@ -13,6 +13,7 @@ tags:
   - name: Documentacion
   - name: Avatares
   - name: Documentos
+  - name: Correo
 components:
   securitySchemes:
     GatewayIdentity:
@@ -250,3 +251,127 @@ paths:
               schema:
                 allOf:
                   - $ref: "#/components/schemas/DataEnvelope"
+  /api/v1/emails/send:
+    post:
+      tags: [Correo]
+      summary: Despachar correo electrónico (transaccional o marketing)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to]
+              properties:
+                to:
+                  oneOf:
+                    - type: string
+                      format: email
+                    - type: array
+                      items:
+                        type: string
+                        format: email
+                subject:
+                  type: string
+                from:
+                  type: string
+                replyTo:
+                  type: string
+                  format: email
+                cc:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+                bcc:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+                template:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      enum: [password_reset, client_invite, worker_invite, email_verify]
+                    variables:
+                      type: object
+                content:
+                  type: object
+                  properties:
+                    subject:
+                      type: string
+                    html:
+                      type: string
+                    text:
+                      type: string
+                sync:
+                  type: boolean
+                  default: false
+                metadata:
+                  type: object
+      responses:
+        "200":
+          description: Correo enviado exitosamente (modo sincrónico)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  messageId:
+                    type: string
+                  status:
+                    type: string
+                    example: sent
+        "202":
+          description: Correo encolado exitosamente (modo asíncrono)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  messageId:
+                    type: string
+                  status:
+                    type: string
+                    example: queued
+        "400":
+          description: Parámetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/emails/send-template:
+    post:
+      tags: [Correo]
+      summary: Despachar correo electrónico por plantilla abreviada
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to, template]
+              properties:
+                to:
+                  type: string
+                  format: email
+                template:
+                  type: string
+                  enum: [password_reset, client_invite, worker_invite, email_verify]
+                variables:
+                  type: object
+                sync:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Correo enviado exitosamente
+        "202":
+          description: Correo encolado exitosamente
+        "400":
+          description: Parámetros inválidos
