@@ -118,7 +118,7 @@ Content-Type: application/json
   "template": {
     "name": "worker_invite",
     "variables": {
-      "token": "tok_inv_887123",
+      "token": "<generado-en-tiempo-de-ejecucion>",
       "role": "Especialista de Marketing"
     }
   },
