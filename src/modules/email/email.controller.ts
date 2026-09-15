@@ -1,78 +1,22 @@
-﻿import type { Context } from "hono";
-import { sendEmailRequestSchema, type SendEmailRequest } from "./email.types";
+import type { Context } from "hono";
+import { sendEmailRequestSchema } from "./email.types";
 import { emailService } from "./email.service";
-import { getLogger } from "../../shared/logger";
-
-const logger = getLogger();
+import { authorizeEmail } from "./email.authorization";
+import { BadRequestError, ForbiddenError } from "../../shared/middlewares/error-handler.middleware";
+import { env } from "../../config/env";
 
 export const emailController = {
   sendEmail: async (c: Context) => {
-    let rawBody: unknown;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.json({ error: "Cuerpo JSON inválido o ausente" }, 400);
+    const body = await c.req.text();
+    const producer = await authorizeEmail(c.req.header("authorization"), body);
+    let input: unknown;
+    try { input = JSON.parse(body); } catch { throw new BadRequestError("Cuerpo JSON inválido"); }
+    const parsed = sendEmailRequestSchema.safeParse(input);
+    if (!parsed.success) throw new BadRequestError("Parámetros de correo inválidos");
+    if (parsed.data.template && producer !== env.EMAIL_AUTH_ISSUER) {
+      throw new ForbiddenError("Las plantillas de identidad pertenecen a auth");
     }
-
-    const parsed = sendEmailRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: "Parámetros de correo inválidos",
-          details: parsed.error.flatten().fieldErrors,
-        },
-        400
-      );
-    }
-
-    const traceId = c.req.header("x-trace-id") || c.req.header("x-correlation-id");
-    try {
-      const result = await emailService.dispatchEmail(parsed.data, traceId);
-      const statusCode = result.status === "sent" ? 200 : 202;
-      return c.json(result, statusCode);
-    } catch (err: any) {
-      logger.error({ err, topic: "email:controller" }, "Error al procesar correo");
-      return c.json({ error: "Error al despachar el correo", message: err.message }, 500);
-    }
-  },
-
-  sendTemplateShortcut: async (c: Context) => {
-    let rawBody: any;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.json({ error: "Cuerpo JSON inválido o ausente" }, 400);
-    }
-
-    const request: SendEmailRequest = {
-      to: rawBody.to,
-      subject: rawBody.subject,
-      template: {
-        name: rawBody.template || rawBody.name,
-        variables: rawBody.variables || {},
-      },
-      sync: Boolean(rawBody.sync),
-    };
-
-    const parsed = sendEmailRequestSchema.safeParse(request);
-    if (!parsed.success) {
-      return c.json(
-        {
-          error: "Parámetros de plantilla inválidos",
-          details: parsed.error.flatten().fieldErrors,
-        },
-        400
-      );
-    }
-
-    const traceId = c.req.header("x-trace-id") || c.req.header("x-correlation-id");
-    try {
-      const result = await emailService.dispatchEmail(parsed.data, traceId);
-      const statusCode = result.status === "sent" ? 200 : 202;
-      return c.json(result, statusCode);
-    } catch (err: any) {
-      logger.error({ err, topic: "email:controller" }, "Error al procesar plantilla");
-      return c.json({ error: "Error al despachar la plantilla", message: err.message }, 500);
-    }
+    const result = await emailService.dispatchEmail(parsed.data, producer, c.get("traceId") || parsed.data.id);
+    return c.json(result, 202);
   },
 };

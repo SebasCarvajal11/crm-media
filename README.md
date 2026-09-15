@@ -90,3 +90,10 @@ pnpm oci:verify     # conectividad OCI
 Los binarios pertenecen a Media y el contexto de negocio pertenece a Collaboration. Para archivos de proyecto, Media solo procesa comandos firmados de `crm-collab` desde `stream:collab.media-commands` y responde en `stream:media.asset-responses` con el mismo `correlationId`.
 
 La firma es un JWT de servicio: el contrato valida su formato y el worker de Media verifica criptográficamente emisor, audiencia, propósito, correlación y `objectKey`. Los errores no recuperables se registran en la DLQ y producen una respuesta `file.command-failed` para evitar esperas silenciosas.
+
+## Servicio Centralizado de Correo Electrónico
+
+Media centraliza el despacho asíncrono y resiliente de correos transaccionales y de negocio para todos los microservicios mediante BullMQ y transporte Brevo SMTP (con TLS SNI estricto).
+
+Ver la guía completa de integración y arquitectura en [`docs/email-service.md`](./docs/email-service.md).
+

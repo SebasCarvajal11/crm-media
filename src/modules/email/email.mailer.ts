@@ -17,6 +17,9 @@ const getSmtpTransport = (): Transporter => {
       secure: env.SMTP_SECURE,
       requireTLS: env.SMTP_REQUIRE_TLS,
       auth: { user: env.SMTP_USER!, pass: env.SMTP_PASS! },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 30000,
       tls:
         env.SMTP_TLS_SERVERNAME || env.SMTP_HOST
           ? { servername: env.SMTP_TLS_SERVERNAME ?? env.SMTP_HOST }
@@ -62,7 +65,6 @@ export const sendRawEmail = async (payload: RawEmailPayload): Promise<{ messageI
   if (env.MAIL_TRANSPORT === "log") {
     const logId = `log-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     logger.info({ topic: "mail:log", subject: mailOptions.subject, to: mailOptions.to, id: logId }, "Email logged");
-    logger.debug({ text: mailOptions.text }, "Email content");
     return { messageId: logId };
   }
 
@@ -73,8 +75,13 @@ export const sendRawEmail = async (payload: RawEmailPayload): Promise<{ messageI
     async () => {
       resultInfo = await transport.sendMail(mailOptions);
     },
-    { maxAttempts: 3, delayMs: 250 }
+    // BullMQ owns delivery retries. Repeating an SMTP transaction immediately
+    // after a lost acknowledgement can duplicate an already accepted message.
+    { maxAttempts: 1 }
   );
 
-  return { messageId: resultInfo?.messageId || `smtp-${Date.now()}` };
+  if (!resultInfo?.accepted?.length || resultInfo.rejected?.length) {
+    throw Object.assign(new Error("SMTP rejected recipient"), { responseCode: 550 });
+  }
+  return { messageId: resultInfo.messageId };
 };

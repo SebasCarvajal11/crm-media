@@ -1,87 +1,36 @@
-﻿import { env } from "../../config/env";
-import { getLogger } from "../../shared/logger";
-import { sendRawEmail } from "./email.mailer";
+import { createHash } from "node:crypto";
+import { env } from "../../config/env";
+import { AppError, BadRequestError, ConflictError } from "../../shared/middlewares/error-handler.middleware";
 import { getEmailQueue } from "./email.queue";
 import { renderSystemTemplate } from "./email.templates";
-import type {
-  EmailDispatchResult,
-  RenderedEmail,
-  SendEmailRequest,
-} from "./email.types";
+import { encryptEmail } from "./email.crypto";
+import type { EmailDispatchResult, SendEmailRequest } from "./email.types";
 
-const logger = getLogger();
-
-const resolveEmailContent = (
-  req: SendEmailRequest,
-  primaryRecipient: string
-): RenderedEmail => {
-  if (req.template) {
-    const rendered = renderSystemTemplate(
-      req.template.name,
-      req.template.variables,
-      primaryRecipient,
-      env.APP_PUBLIC_URL
-    );
-    return {
-      subject: req.subject || rendered.subject,
-      html: rendered.html,
-      text: rendered.text,
-    };
-  }
-
-  if (req.content) {
-    return {
-      subject: req.content.subject,
-      html: req.content.html,
-      text:
-        req.content.text ||
-        req.content.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
-    };
-  }
-
-  throw new Error("El correo debe contener 'template' o 'content'");
-};
-
-export const createEmailService = () => ({
-  dispatchEmail: async (
-    req: SendEmailRequest,
-    traceId?: string
-  ): Promise<EmailDispatchResult> => {
-    const primary = Array.isArray(req.to) ? req.to[0] : req.to;
-    const { subject, html, text } = resolveEmailContent(req, primary);
-
-    const emailPayload = {
-      to: req.to,
-      from: req.from || env.MAIL_FROM,
-      replyTo: req.replyTo,
-      cc: req.cc,
-      bcc: req.bcc,
-      subject,
-      text,
-      html,
-    };
-
-    if (req.sync) {
-      const sent = await sendRawEmail(emailPayload);
-      return { success: true, messageId: sent.messageId, status: "sent" };
+export const createEmailService = (queueProvider = getEmailQueue) => ({
+  dispatchEmail: async (req: SendEmailRequest, producer: string, traceId: string): Promise<EmailDispatchResult> => {
+    const remaining = Date.parse(req.expiresAt) - Date.now();
+    if (remaining <= 0 || remaining > 7 * 86400_000) {
+      throw new BadRequestError("expiresAt debe estar dentro de los próximos 7 días");
     }
-
-    const queue = getEmailQueue();
-    if (!queue) {
-      logger.warn({ topic: "mail:service" }, "Queue no disponible, enviando síncrono");
-      const sent = await sendRawEmail(emailPayload);
-      return { success: true, messageId: sent.messageId, status: "sent" };
+    const queue = queueProvider();
+    if (!queue) throw new AppError(503, "Cola de correo no disponible", "DEPENDENCY_FAILED");
+    const fingerprint = createHash("sha256").update(JSON.stringify(req)).digest("hex");
+    const jobId = "email-" + createHash("sha256").update(producer).digest("hex").slice(0, 16) + "-" + req.id;
+    const content = req.template
+      ? renderSystemTemplate(req.template.name, req.template.variables, req.to, env.APP_PUBLIC_URL)
+      : req.content!;
+    const ciphertext = encryptEmail({ to: req.to, replyTo: req.replyTo, ...content });
+    try {
+      await queue.add("send", { ciphertext, fingerprint, expiresAt: req.expiresAt, producer, traceId }, { jobId });
+      // Read the winning record after atomic add, including concurrent duplicate requests.
+      const accepted = await queue.getJob(jobId);
+      if (!accepted) throw new Error("Queue receipt missing");
+      if (accepted.data.fingerprint !== fingerprint) throw new ConflictError("El identificador ya pertenece a otro correo");
+    } catch (error) {
+      if (error instanceof ConflictError) throw error;
+      throw new AppError(503, "No se pudo confirmar la recepción del correo", "DEPENDENCY_FAILED");
     }
-
-    const jobId = `email-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    await queue.add(
-      "send",
-      { id: jobId, ...emailPayload, traceId, metadata: req.metadata },
-      { jobId }
-    );
-
     return { success: true, messageId: jobId, status: "queued" };
   },
 });
-
 export const emailService = createEmailService();

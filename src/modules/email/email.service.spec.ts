@@ -1,106 +1,75 @@
-﻿import { describe, expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
+import { describe, expect, it, vi } from "vitest";
+vi.mock("../../config/env", () => ({ env: {
+  APP_PUBLIC_URL: "https://crm.example.test",
+  EMAIL_QUEUE_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+} }));
 import { renderSystemTemplate, escapeHtml } from "./email.templates";
-import { sendEmailRequestSchema } from "./email.types";
+import { sendEmailRequestSchema, type SendEmailRequest } from "./email.types";
 import { createEmailService } from "./email.service";
+import { decryptEmail } from "./email.crypto";
 
-describe("email.templates", () => {
-  it("escapes html special characters", () => {
-    expect(escapeHtml("<script>alert('xss')&\"</script>")).toBe(
-      "&lt;script&gt;alert('xss')&amp;&quot;&lt;/script&gt;"
-    );
-  });
-
-  it("renders password_reset template", () => {
-    const rendered = renderSystemTemplate(
-      "password_reset",
-      { token: "abc-token-123" },
-      "test@cima.dev",
-      "https://crm.cima.dev"
-    );
-
-    expect(rendered.subject).toContain("Recuperación de contraseña");
-    expect(rendered.text).toContain("https://crm.cima.dev/reset-password?token=abc-token-123");
-    expect(rendered.html).toContain("test@cima.dev");
-    expect(rendered.html).toContain("https://crm.cima.dev/reset-password?token=abc-token-123");
-  });
-
-  it("renders client_invite and worker_invite templates", () => {
-    const client = renderSystemTemplate(
-      "client_invite",
-      { token: "client-token" },
-      "cliente@empresa.com",
-      "https://crm.cima.dev"
-    );
-    expect(client.subject).toContain("Invitación a CIMA CRM (cliente)");
-    expect(client.text).toContain("/accept-invite/client-token");
-
-    const worker = renderSystemTemplate(
-      "worker_invite",
-      { token: "worker-token", role: "diseñador" },
-      "worker@cima.dev",
-      "https://crm.cima.dev"
-    );
-    expect(worker.subject).toContain("diseñador");
-    expect(worker.text).toContain("/accept-invite/worker-token");
-  });
-
-  it("renders email_verify template", () => {
-    const verify = renderSystemTemplate(
-      "email_verify",
-      { token: "verify-token" },
-      "nuevo@cima.dev",
-      "https://crm.cima.dev"
-    );
-    expect(verify.subject).toContain("Verifica tu correo");
-    expect(verify.text).toContain("/verify-email?token=verify-token");
-  });
+const request = (): SendEmailRequest => ({
+  version: 1, id: randomUUID(), expiresAt: new Date(Date.now() + 3600000).toISOString(),
+  to: "test@hurl.test", template: { name: "password_reset", variables: { token: "opaque-token" } },
 });
-
-describe("email.types validation", () => {
-  it("validates direct content payload", () => {
-    const valid = sendEmailRequestSchema.safeParse({
-      to: "usuario@ejemplo.com",
-      content: {
-        subject: "Aviso importante",
-        html: "<p>Hola mundo</p>",
-      },
-    });
-    expect(valid.success).toBe(true);
+function fixture() {
+  const records = new Map<string, { data: unknown }>();
+  const queue = {
+    add: vi.fn(async (_name: string, data: unknown, opts: { jobId: string }) => {
+      if (!records.has(opts.jobId)) records.set(opts.jobId, { data });
+    }),
+    getJob: vi.fn(async (id: string) => records.get(id)),
+  };
+  return { queue, records, service: createEmailService(() => queue as never) };
+}
+describe("central email service", () => {
+  it.each([
+    ["client_invite", "cliente", "/accept-invite/"],
+    ["worker_invite", "colaborador", "/accept-invite/"],
+    ["admin_invite", "administrador", "/accept-invite/"],
+    ["password_reset", "contraseña", "/reset-password?token="],
+    ["email_verify", "correo", "/verify-email?token="],
+  ] as const)("renders %s with the correct role and route", (name, label, route) => {
+    const email = renderSystemTemplate(name, { token: "a/b?c" }, "test@hurl.test", "https://crm.example.test");
+    expect(email.subject).toContain(label);
+    expect(email.text).toContain(route + "a%2Fb%3Fc");
   });
-
-  it("validates template payload", () => {
-    const valid = sendEmailRequestSchema.safeParse({
-      to: "usuario@ejemplo.com",
-      template: {
-        name: "password_reset",
-        variables: { token: "token-123" },
-      },
-    });
-    expect(valid.success).toBe(true);
+  it("escapes user-controlled text", () => expect(escapeHtml('<>&"')).toBe("&lt;&gt;&amp;&quot;"));
+  it("validates the shared schema and rejects conflicting content or sender overrides", () => {
+    expect(sendEmailRequestSchema.safeParse(request()).success).toBe(true);
+    expect(sendEmailRequestSchema.safeParse({ ...request(), content: { subject: "x", html: "x", text: "x" } }).success).toBe(false);
+    expect(sendEmailRequestSchema.safeParse({ ...request(), from: "attacker@test.com" }).success).toBe(false);
+    expect(sendEmailRequestSchema.safeParse({ ...request(), sync: true }).success).toBe(false);
+    expect(sendEmailRequestSchema.safeParse({ ...request(), to: ["a@test.com", "b@test.com"] }).success).toBe(false);
   });
-
-  it("fails when neither content nor template is provided", () => {
-    const invalid = sendEmailRequestSchema.safeParse({
-      to: "usuario@ejemplo.com",
-    });
-    expect(invalid.success).toBe(false);
+  it("encrypts queue data and deduplicates concurrent retries", async () => {
+    const { service, records } = fixture();
+    const req = request();
+    const results = await Promise.all(Array.from({ length: 8 }, () => service.dispatchEmail(req, "crm-auth", req.id)));
+    expect(new Set(results.map(x => x.messageId)).size).toBe(1);
+    expect(records.size).toBe(1);
+    const data = [...records.values()][0].data as { ciphertext: string };
+    expect(JSON.stringify(data)).not.toContain("opaque-token");
+    expect(decryptEmail(data.ciphertext).text).toContain("opaque-token");
   });
-});
-
-describe("email.service dispatch", () => {
-  it("dispatches synchronous email in log mode", async () => {
-    const service = createEmailService();
-    const result = await service.dispatchEmail({
-      to: "destinatario@cima.dev",
-      content: {
-        subject: "Prueba directa",
-        html: "<b>Hola</b>",
-      },
-      sync: true,
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.status).toBe("sent");
-    expect(result.messageId).toBeTruthy();
+  it("rejects reusing an identifier with a different payload", async () => {
+    const { service } = fixture(); const req = request();
+    await service.dispatchEmail(req, "crm-auth", req.id);
+    await expect(service.dispatchEmail({ ...req, to: "other@hurl.test" }, "crm-auth", req.id)).rejects.toMatchObject({ statusCode: 409 });
+  });
+  it("keeps separate producer namespaces", async () => {
+    const { service, records } = fixture(); const req = request();
+    await service.dispatchEmail(req, "crm-auth", req.id);
+    await service.dispatchEmail(req, "crm-marketing", req.id);
+    expect(records.size).toBe(2);
+  });
+  it("fails visibly when Redis is unavailable", async () => {
+    await expect(createEmailService(() => undefined).dispatchEmail(request(), "crm-auth", "trace")).rejects.toMatchObject({ statusCode: 503 });
+    const { service, queue } = fixture(); queue.add.mockRejectedValueOnce(new Error("Redis down"));
+    await expect(service.dispatchEmail(request(), "crm-auth", "trace")).rejects.toMatchObject({ statusCode: 503 });
+  });
+  it.each([-1000, 8 * 86400000])("rejects expired or excessive lifetimes", async (offset) => {
+    await expect(fixture().service.dispatchEmail({ ...request(), expiresAt: new Date(Date.now() + offset).toISOString() }, "crm-auth", "trace")).rejects.toMatchObject({ statusCode: 400 });
   });
 });

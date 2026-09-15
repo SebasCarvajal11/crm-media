@@ -135,12 +135,12 @@ const renderVerifyEmail = (link: string): RenderedEmail => ({
 
 export const renderSystemTemplate = (
   name: SystemTemplateName,
-  variables: Record<string, any>,
+  variables: { token: string },
   targetEmail: string,
   defaultPublicUrl: string
 ): RenderedEmail => {
-  const baseUrl = (variables.appPublicUrl || defaultPublicUrl).replace(/\/$/, "");
-  const email = variables.to || targetEmail;
+  const baseUrl = defaultPublicUrl.replace(/\/$/, "");
+  const email = targetEmail;
   const token = encodeURIComponent(variables.token || "");
 
   switch (name) {
@@ -149,7 +149,9 @@ export const renderSystemTemplate = (
     case "client_invite":
       return renderInvite(email, `${baseUrl}/accept-invite/${token}`, "cliente");
     case "worker_invite":
-      return renderInvite(email, `${baseUrl}/accept-invite/${token}`, variables.role || "colaborador");
+      return renderInvite(email, `${baseUrl}/accept-invite/${token}`, "colaborador");
+    case "admin_invite":
+      return renderInvite(email, `${baseUrl}/accept-invite/${token}`, "administrador");
     case "email_verify":
       return renderVerifyEmail(`${baseUrl}/verify-email?token=${token}`);
   }

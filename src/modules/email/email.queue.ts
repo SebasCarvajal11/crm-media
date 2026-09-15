@@ -1,5 +1,6 @@
 ﻿import { Queue } from "bullmq";
 import { getRedisConnection } from "../../shared/redis";
+import { env } from "../../config/env";
 import type { EmailDispatchJob } from "./email.types";
 
 export const EMAIL_QUEUE_NAME = "mod-media-email";
@@ -12,12 +13,13 @@ export const getEmailQueue = (): Queue<EmailDispatchJob> | undefined => {
   if (!emailQueue) {
     emailQueue = new Queue<EmailDispatchJob>(EMAIL_QUEUE_NAME, {
       connection: conn as any,
-      prefix: "media",
+      prefix: env.EMAIL_QUEUE_PREFIX,
       defaultJobOptions: {
         attempts: 5,
         backoff: { type: "exponential", delay: 3000 },
-        removeOnComplete: { count: 2500 },
-        removeOnFail: { count: 5000 },
+        // Retain longer than the maximum command lifetime, without count eviction.
+        removeOnComplete: { age: 8 * 86400 },
+        removeOnFail: { age: 8 * 86400 },
       },
     });
   }

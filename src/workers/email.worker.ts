@@ -12,6 +12,7 @@ if (!env.REDIS_URL) {
   logger.error({ topic: "worker:email" }, "REDIS_URL es requerido para el worker de correo");
   process.exit(1);
 }
+if (!env.EMAIL_QUEUE_ENCRYPTION_KEY) throw new Error("EMAIL_QUEUE_ENCRYPTION_KEY is required");
 
 const connection = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
@@ -19,8 +20,9 @@ const connection = new Redis(env.REDIS_URL, {
 
 const worker = new Worker(EMAIL_QUEUE_NAME, processEmailJob, {
   connection: connection as any,
-  prefix: "media",
+  prefix: env.EMAIL_QUEUE_PREFIX,
   concurrency: 5,
+  limiter: { max: env.EMAIL_RATE_MAX, duration: env.EMAIL_RATE_DURATION_MS },
 });
 
 const healthcheck = startWorkerHealthcheck("media-email-worker", { redis: connection });

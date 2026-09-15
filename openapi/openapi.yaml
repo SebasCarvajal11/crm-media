@@ -16,6 +16,10 @@ tags:
   - name: Correo
 components:
   securitySchemes:
+    EmailServiceJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
     GatewayIdentity:
       type: apiKey
       in: header
@@ -254,124 +258,102 @@ paths:
   /api/v1/emails/send:
     post:
       tags: [Correo]
-      summary: Despachar correo electrónico (transaccional o marketing)
+      summary: Aceptar un comando interno de correo
+      description: |
+        Exclusivo de servicios autorizados; no se publica en el gateway.
+        JWT RS256 con iss/sub del servicio, aud crm-media:email, purpose email:dispatch,
+        iat/exp (máximo 60 segundos) y bodyHash SHA-256 hexadecimal del cuerpo exacto.
+        Solo Auth puede usar plantillas de identidad. Los demás servicios envían content.
+        Reintentar con el mismo id, expiresAt y contenido; 202 confirma la cola, no la entrega.
+      security:
+        - EmailServiceJWT: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [to]
+              additionalProperties: false
+              required: [version, id, expiresAt, to]
+              oneOf:
+                - required: [template]
+                - required: [content]
               properties:
+                version:
+                  type: integer
+                  enum: [1]
+                id:
+                  type: string
+                  format: uuid
+                expiresAt:
+                  type: string
+                  format: date-time
+                  description: Fecha futura, máximo 7 días; no se renueva al reintentar.
                 to:
-                  oneOf:
-                    - type: string
-                      format: email
-                    - type: array
-                      items:
-                        type: string
-                        format: email
-                subject:
                   type: string
-                from:
-                  type: string
+                  format: email
+                  maxLength: 255
                 replyTo:
                   type: string
                   format: email
-                cc:
-                  type: array
-                  items:
-                    type: string
-                    format: email
-                bcc:
-                  type: array
-                  items:
-                    type: string
-                    format: email
                 template:
                   type: object
+                  additionalProperties: false
+                  required: [name, variables]
                   properties:
                     name:
                       type: string
-                      enum: [password_reset, client_invite, worker_invite, email_verify]
+                      enum: [password_reset, client_invite, worker_invite, admin_invite, email_verify]
                     variables:
                       type: object
+                      additionalProperties: false
+                      required: [token]
+                      properties:
+                        token:
+                          type: string
+                          minLength: 1
+                          maxLength: 512
                 content:
                   type: object
+                  additionalProperties: false
+                  required: [subject, html, text]
                   properties:
                     subject:
                       type: string
+                      minLength: 1
+                      maxLength: 250
                     html:
                       type: string
+                      minLength: 1
+                      maxLength: 100000
                     text:
                       type: string
-                sync:
-                  type: boolean
-                  default: false
-                metadata:
-                  type: object
+                      minLength: 1
+                      maxLength: 100000
       responses:
-        "200":
-          description: Correo enviado exitosamente (modo sincrónico)
+        "202":
+          description: Comando aceptado en la cola; la entrega se procesa en segundo plano.
           content:
             application/json:
               schema:
                 type: object
+                required: [success, messageId, status]
                 properties:
                   success:
                     type: boolean
+                    enum: [true]
                   messageId:
                     type: string
                   status:
                     type: string
-                    example: sent
-        "202":
-          description: Correo encolado exitosamente (modo asíncrono)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  messageId:
-                    type: string
-                  status:
-                    type: string
-                    example: queued
+                    enum: [queued]
         "400":
-          description: Parámetros inválidos
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /api/v1/emails/send-template:
-    post:
-      tags: [Correo]
-      summary: Despachar correo electrónico por plantilla abreviada
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [to, template]
-              properties:
-                to:
-                  type: string
-                  format: email
-                template:
-                  type: string
-                  enum: [password_reset, client_invite, worker_invite, email_verify]
-                variables:
-                  type: object
-                sync:
-                  type: boolean
-                  default: false
-      responses:
-        "200":
-          description: Correo enviado exitosamente
-        "202":
-          description: Correo encolado exitosamente
-        "400":
-          description: Parámetros inválidos
+          description: JSON, esquema o vigencia inválidos.
+        "401":
+          description: JWT ausente, expirado, alterado o de usuario.
+        "403":
+          description: Emisor o plantilla no autorizados.
+        "409":
+          description: El id ya corresponde a otro contenido.
+        "503":
+          description: No se pudo confirmar la recepción; reintentar el mismo comando.

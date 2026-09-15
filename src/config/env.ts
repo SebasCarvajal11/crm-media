@@ -89,7 +89,20 @@ const envSchema = z.object({
     .default("true")
     .transform((v) => v === "true" || v === "1"),
   SMTP_TLS_SERVERNAME: z.string().optional(),
-  APP_PUBLIC_URL: z.string().default("http://localhost:5173"),
+  APP_PUBLIC_URL: z.string().url().refine((url) => /^https?:\/\//.test(url)).default("http://localhost:5173"),
+  EMAIL_AUTH_ISSUER: z.string().default("crm-auth"),
+  EMAIL_SERVICE_JWKS: z.string().default("{}").transform((value, ctx) => {
+    try {
+      return z.record(z.string().min(1), z.string().url()).parse(JSON.parse(value));
+    } catch {
+      ctx.addIssue({ code: "custom", message: "EMAIL_SERVICE_JWKS must map service issuers to trusted JWKS URLs" });
+      return z.NEVER;
+    }
+  }),
+  EMAIL_QUEUE_ENCRYPTION_KEY: z.string().refine((key) => Buffer.from(key, "base64").length === 32).optional(),
+  EMAIL_QUEUE_PREFIX: z.string().regex(/^[a-zA-Z0-9_-]+$/).default("media"),
+  EMAIL_RATE_MAX: z.coerce.number().int().positive().default(300),
+  EMAIL_RATE_DURATION_MS: z.coerce.number().int().positive().default(86400000),
 }).superRefine((data, ctx) => {
   if (data.MAIL_TRANSPORT === "smtp") {
     if (!data.SMTP_HOST) {
