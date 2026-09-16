@@ -93,7 +93,13 @@ const envSchema = z.object({
   EMAIL_AUTH_ISSUER: z.string().default("crm-auth"),
   EMAIL_SERVICE_JWKS: z
     .string()
-    .default(JSON.stringify({ "crm-auth": "http://crm-auth:3000/api/v1/.well-known/jwks.json" }))
+    .default(
+      JSON.stringify({
+        "crm-auth": "http://crm-auth:3000/api/v1/.well-known/jwks.json",
+        "crm-collab": "http://crm-collab:3001/api/v1/.well-known/service-jwks.json",
+        "crm-marketing": "http://crm-marketing:3003/api/v1/.well-known/jwks.json",
+      })
+    )
     .transform((value, ctx) => {
     try {
       return z.record(z.string().min(1), z.string().url()).parse(JSON.parse(value));
