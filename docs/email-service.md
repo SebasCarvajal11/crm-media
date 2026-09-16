@@ -118,10 +118,10 @@ SMTP_USER='<usuario-smtp-brevo>'
 SMTP_PASS='<clave-smtp-brevo>'
 SMTP_SECURE='false'
 SMTP_REQUIRE_TLS='true'
-SMTP_TLS_SERVERNAME='smtp-relay.sendinblue.com'
-MAIL_FROM='CIMA CRM <urlastro00@gmail.com>'
+SMTP_TLS_SERVERNAME='smtp-relay.brevo.com'
+MAIL_FROM='CIMA CRM <appsfacilitan2025@gmail.com>'
 APP_PUBLIC_URL='http://localhost:5173'
 EMAIL_QUEUE_ENCRYPTION_KEY='<clave-base64-32bytes>'
 ```
 
-> **Nota Crítica sobre TLS**: Brevo expone sus certificados bajo el dominio `*.sendinblue.com`. `SMTP_TLS_SERVERNAME=smtp-relay.sendinblue.com` asegura la validación SNI sin relajar las restricciones de seguridad TLS (`rejectUnauthorized: true`).
+> **Nota Crítica sobre TLS**: Los certificados de Brevo presentan `*.brevo.com`. `SMTP_TLS_SERVERNAME=smtp-relay.brevo.com` asegura la validación SNI sin relajar las restricciones de seguridad TLS (`rejectUnauthorized: true`).
