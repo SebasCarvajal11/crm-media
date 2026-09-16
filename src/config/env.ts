@@ -91,7 +91,10 @@ const envSchema = z.object({
   SMTP_TLS_SERVERNAME: z.string().optional(),
   APP_PUBLIC_URL: z.string().url().refine((url) => /^https?:\/\//.test(url)).default("http://localhost:5173"),
   EMAIL_AUTH_ISSUER: z.string().default("crm-auth"),
-  EMAIL_SERVICE_JWKS: z.string().default("{}").transform((value, ctx) => {
+  EMAIL_SERVICE_JWKS: z
+    .string()
+    .default(JSON.stringify({ "crm-auth": "http://crm-auth:3000/api/v1/.well-known/jwks.json" }))
+    .transform((value, ctx) => {
     try {
       return z.record(z.string().min(1), z.string().url()).parse(JSON.parse(value));
     } catch {
@@ -104,6 +107,22 @@ const envSchema = z.object({
   EMAIL_RATE_MAX: z.coerce.number().int().positive().default(300),
   EMAIL_RATE_DURATION_MS: z.coerce.number().int().positive().default(86400000),
 }).superRefine((data, ctx) => {
+  if (data.NODE_ENV === "production") {
+    if (data.MAIL_TRANSPORT !== "smtp") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["MAIL_TRANSPORT"],
+        message: "MAIL_TRANSPORT debe ser 'smtp' en producción",
+      });
+    }
+    if (!data.EMAIL_QUEUE_ENCRYPTION_KEY) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["EMAIL_QUEUE_ENCRYPTION_KEY"],
+        message: "EMAIL_QUEUE_ENCRYPTION_KEY es obligatoria en producción",
+      });
+    }
+  }
   if (data.MAIL_TRANSPORT === "smtp") {
     if (!data.SMTP_HOST) {
       ctx.addIssue({
