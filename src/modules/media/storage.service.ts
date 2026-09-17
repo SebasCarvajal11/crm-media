@@ -19,7 +19,22 @@ export interface AssetStats {
   avatarsBytes: number;
 }
 
+export interface CloudStorageStats {
+  quotaBytes: number;
+  usedBytes: number;
+  availableBytes: number;
+  usedPercentage: number;
+  totalFilesCount: number;
+  projectFilesCount: number;
+  projectFilesBytes: number;
+  avatarsCount: number;
+  avatarsBytes: number;
+  documentsCount: number;
+  documentsBytes: number;
+}
+
 export interface StorageStats {
+  cloudStorage: CloudStorageStats;
   disk: DiskStats;
   assets: AssetStats;
   cachedAt: string;
@@ -28,6 +43,7 @@ export interface StorageStats {
 let cachedStats: StorageStats | null = null;
 let cacheExpiresAt = 0;
 const CACHE_TTL_MS = 30_000;
+const DEFAULT_OCI_QUOTA_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB (Oracle Cloud Always Free)
 
 export const storageService = {
   async getDiskStats(targetPath = "/"): Promise<DiskStats> {
@@ -47,22 +63,33 @@ export const storageService = {
     }
   },
 
-  async getAssetStats(): Promise<AssetStats> {
-    const rows = await db
-      .select({
-        kind: mediaAssets.kind,
-        count: sql<number>`count(*)::int`,
-        bytes: sql<number>`coalesce(sum(${mediaAssets.sizeBytes}), 0)::bigint`,
-      })
-      .from(mediaAssets)
-      .groupBy(mediaAssets.kind);
+  async getCloudStorageStats(): Promise<CloudStorageStats> {
+    const quotaBytes = Number(process.env.OCI_OBJECT_STORAGE_QUOTA_BYTES) || DEFAULT_OCI_QUOTA_BYTES;
+
+    const [mediaRows, collabRes] = await Promise.all([
+      db
+        .select({
+          kind: mediaAssets.kind,
+          count: sql<number>`count(*)::int`,
+          bytes: sql<number>`coalesce(sum(${mediaAssets.sizeBytes}), 0)::bigint`,
+        })
+        .from(mediaAssets)
+        .groupBy(mediaAssets.kind)
+        .catch(() => []),
+      db
+        .execute(sql`
+          SELECT count(*)::int as count, coalesce(sum(size_bytes), 0)::bigint as bytes 
+          FROM schema_collab.project_files
+        `)
+        .catch(() => ({ rows: [{ count: 0, bytes: 0 }] })),
+    ]);
 
     let documentsCount = 0;
     let documentsBytes = 0;
     let avatarsCount = 0;
     let avatarsBytes = 0;
 
-    for (const row of rows) {
+    for (const row of mediaRows) {
       const count = Number(row.count) || 0;
       const bytes = Number(row.bytes) || 0;
       if (row.kind === "document") {
@@ -74,13 +101,28 @@ export const storageService = {
       }
     }
 
+    const firstCollab = (collabRes as any)?.rows?.[0];
+    const projectFilesCount = Number(firstCollab?.count) || 0;
+    const projectFilesBytes = Number(firstCollab?.bytes) || 0;
+
+    const usedBytes = documentsBytes + avatarsBytes + projectFilesBytes;
+    const availableBytes = Math.max(0, quotaBytes - usedBytes);
+    const usedPercentage = quotaBytes > 0
+      ? Number(((usedBytes / quotaBytes) * 100).toFixed(2))
+      : 0;
+
     return {
-      totalAssetsCount: documentsCount + avatarsCount,
-      totalAssetsBytes: documentsBytes + avatarsBytes,
-      documentsCount,
-      documentsBytes,
+      quotaBytes,
+      usedBytes,
+      availableBytes,
+      usedPercentage,
+      totalFilesCount: documentsCount + avatarsCount + projectFilesCount,
+      projectFilesCount,
+      projectFilesBytes,
       avatarsCount,
       avatarsBytes,
+      documentsCount,
+      documentsBytes,
     };
   },
 
@@ -90,12 +132,22 @@ export const storageService = {
       return cachedStats;
     }
 
-    const [disk, assets] = await Promise.all([
+    const [disk, cloudStorage] = await Promise.all([
       this.getDiskStats(),
-      this.getAssetStats(),
+      this.getCloudStorageStats(),
     ]);
 
+    const assets: AssetStats = {
+      totalAssetsCount: cloudStorage.totalFilesCount,
+      totalAssetsBytes: cloudStorage.usedBytes,
+      documentsCount: cloudStorage.documentsCount + cloudStorage.projectFilesCount,
+      documentsBytes: cloudStorage.documentsBytes + cloudStorage.projectFilesBytes,
+      avatarsCount: cloudStorage.avatarsCount,
+      avatarsBytes: cloudStorage.avatarsBytes,
+    };
+
     cachedStats = {
+      cloudStorage,
       disk,
       assets,
       cachedAt: new Date(now).toISOString(),
