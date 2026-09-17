@@ -108,3 +108,13 @@ mediaRoutes.delete(
     return c.json(payload);
   },
 );
+
+mediaRoutes.get(
+  "/storage/stats",
+  requireRole("admin"),
+  async (c) => {
+    const payload = await mediaController.getStorageStats();
+    return c.json(payload);
+  },
+);
+

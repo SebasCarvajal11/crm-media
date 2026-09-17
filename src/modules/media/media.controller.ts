@@ -1,6 +1,7 @@
 import { AppError } from "../../shared/middlewares/error-handler.middleware";
 import { avatarService } from "./avatar.service";
 import { documentService } from "./document.service";
+import { storageService } from "./storage.service";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
@@ -124,6 +125,10 @@ export const mediaController = {
   },
   getCurrentAvatarsByUsers: async (userIds: string[]) => {
     const data = await avatarService.getCurrentAvatarsByUsers(userIds);
+    return { data };
+  },
+  getStorageStats: async () => {
+    const data = await storageService.getStorageStats();
     return { data };
   },
 };

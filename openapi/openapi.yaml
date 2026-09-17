@@ -255,6 +255,18 @@ paths:
               schema:
                 allOf:
                   - $ref: "#/components/schemas/DataEnvelope"
+  /api/v1/media/storage/stats:
+    get:
+      tags: [Sistema]
+      summary: Obtener metricas de almacenamiento y disco (solo administradores)
+      responses:
+        "200":
+          description: Estadisticas de disco y archivos
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/DataEnvelope"
   /api/v1/emails/send:
     post:
       tags: [Correo]

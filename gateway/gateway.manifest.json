@@ -69,6 +69,12 @@
       "openapi_ref": "GET /api/v1/media/avatars/users"
     },
     {
+      "endpoint": "/api/v1/media/storage/stats",
+      "method": "GET",
+      "backend_url": "/api/v1/media/storage/stats",
+      "openapi_ref": "GET /api/v1/media/storage/stats"
+    },
+    {
       "endpoint": "/api/v1/emails/send",
       "method": "POST",
       "backend_url": "/api/v1/emails/send",
