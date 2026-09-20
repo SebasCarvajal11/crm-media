@@ -40,14 +40,13 @@ export const mediaController = {
     if (buffer.length > MAX_AVATAR_BYTES) throw new AppError(413, "Avatar excede 5MB");
     
     const { ipAddress, userAgent } = getContextFromRequest(request);
-    const data = await avatarService.uploadAvatar(
-      user.userId,
-      uploaded.name,
-      buffer,
-      user,
+    const data = await avatarService.uploadAvatar(user.userId, {
+      originalName: uploaded.name,
+      rawBuffer: buffer,
+      actor: user,
       ipAddress,
-      userAgent
-    );
+      userAgent,
+    });
     return { data };
   },
 
@@ -95,12 +94,13 @@ export const mediaController = {
     const { ipAddress, userAgent } = getContextFromRequest(request);
     const data = await documentService.confirmDocumentUpload(
       user,
-      body.objectKey,
-      body.fileName,
-      body.mimeType,
-      body.sizeBytes,
-      ipAddress,
-      userAgent
+      {
+        objectKey: body.objectKey,
+        fileName: body.fileName,
+        mimeType: body.mimeType,
+        sizeBytes: body.sizeBytes,
+      },
+      { ipAddress, userAgent },
     );
     return { data };
   },
@@ -116,7 +116,7 @@ export const mediaController = {
   },
   deleteDocument: async (request: Request, user: any, objectKey: string) => {
     const { ipAddress, userAgent } = getContextFromRequest(request);
-    const data = await documentService.deleteDocument(user, objectKey, ipAddress, userAgent);
+    const data = await documentService.deleteDocument(user, objectKey, { ipAddress, userAgent });
     return { data };
   },
   getCurrentAvatar: async (userId: string) => {

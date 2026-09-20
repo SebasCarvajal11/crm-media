@@ -8,7 +8,7 @@ import { ociStorage } from "../../shared/storage/oci-storage";
 import { sanitizeFileNameForObjectKey, sanitizeStoredFileName } from "../../shared/sanitize-filename";
 import { env } from "../../config/env";
 import { v4 as uuidv4 } from "uuid";
-import { scanBufferForVirus } from "../../shared/security/clamav";
+import { collabDocumentService, tryPromoteFromQuarantine } from "./collab-document.service";
 
 const logger = getLogger();
 
@@ -19,42 +19,17 @@ export type DocumentAccessActor = {
   email: string;
 };
 
-const tryPromoteFromQuarantine = async (objectKey: string): Promise<boolean> => {
-  const quarantineKey = `quarantine/${objectKey}`;
-  const bucket = env.OCI_BUCKET_DOCS_PRIVATE;
-  if (!(await ociStorage.verifyObjectExists(bucket, quarantineKey))) {
-    return false;
-  }
-  try {
-    const buffer = await ociStorage.getObjectBuffer(bucket, quarantineKey);
-    const isClean = await scanBufferForVirus(buffer);
-    if (!isClean) {
-      await ociStorage.deleteObject(bucket, quarantineKey);
-      throw new AppError(400, "El archivo fue rechazado por la validación antivirus.");
-    }
-    const meta = await ociStorage.getObjectMetadata(bucket, quarantineKey);
-    const mimeType = meta?.mimeType ?? "application/octet-stream";
-    await ociStorage.uploadPrivateDocument(objectKey, buffer, mimeType);
-    await ociStorage.deleteObject(bucket, quarantineKey);
-    return true;
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    logger.error({ err: error, objectKey, topic: "document.service" }, "Error promoviendo desde cuarentena");
-    return false;
-  }
+export type ConfirmDocumentUploadPayload = {
+  objectKey: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
 };
 
-function assertCollabObjectKey(objectKey: string): void {
-  if (!objectKey.startsWith("projects/")) {
-    throw new AppError(403, "El objectKey no pertenece a archivos de colaboracion");
-  }
-}
-
-async function deleteIfExists(bucket: string, objectKey: string): Promise<void> {
-  if (await ociStorage.verifyObjectExists(bucket, objectKey)) {
-    await ociStorage.deleteObject(bucket, objectKey);
-  }
-}
+export type RequestMeta = {
+  ipAddress?: string;
+  userAgent?: string;
+};
 
 export const documentService = {
   generateDocumentUploadUrl: async (
@@ -64,10 +39,7 @@ export const documentService = {
     sizeBytes: number,
   ) => {
     const storedFileName = sanitizeStoredFileName(fileName);
-    if (isBlockedFileName(storedFileName)) {
-      throw new AppError(400, "Tipo de archivo bloqueado por seguridad");
-    }
-    if (isBlockedMime(mimeType)) {
+    if (isBlockedFileName(storedFileName) || isBlockedMime(mimeType)) {
       throw new AppError(400, "Tipo de archivo bloqueado por seguridad");
     }
     const MAX_BYTES = 25 * 1024 * 1024;
@@ -85,90 +57,12 @@ export const documentService = {
     return { uploadUrl, objectKey, expiresInSeconds: env.DOC_PAR_TTL_SECONDS };
   },
 
-  generateDocumentUploadUrlForCollabCommand: async (
-    objectKey: string,
-    fileName: string,
-    mimeType: string,
-    sizeBytes: number,
-  ) => {
-    assertCollabObjectKey(objectKey);
-    const storedFileName = sanitizeStoredFileName(fileName);
-    if (isBlockedFileName(storedFileName) || isBlockedMime(mimeType)) {
-      throw new AppError(400, "Tipo de archivo bloqueado por seguridad");
-    }
-    const MAX_BYTES = 25 * 1024 * 1024;
-    if (sizeBytes > MAX_BYTES) throw new AppError(413, "Archivo excede 25MB");
-
-    const quarantineKey = `quarantine/${objectKey}`;
-    const uploadUrl = await ociStorage.createUploadPar(
-      env.OCI_BUCKET_DOCS_PRIVATE,
-      quarantineKey,
-      env.DOC_PAR_TTL_SECONDS,
-    );
-
-    return { uploadUrl, objectKey, expiresInSeconds: env.DOC_PAR_TTL_SECONDS };
-  },
-
-  resolveDocumentMetadataForCollabCommand: async (
-    objectKey: string,
-    fileName: string,
-    mimeType: string,
-    sizeBytes: number,
-  ) => {
-    assertCollabObjectKey(objectKey);
-    const storedFileName = sanitizeStoredFileName(fileName);
-    if (isBlockedFileName(storedFileName) || isBlockedMime(mimeType)) {
-      throw new AppError(400, "Tipo de archivo bloqueado por seguridad");
-    }
-
-    let meta = await ociStorage.getObjectMetadata(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
-    if (!meta) {
-      const promoted = await tryPromoteFromQuarantine(objectKey);
-      if (promoted) {
-        meta = await ociStorage.getObjectMetadata(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
-      }
-    }
-
-    if (!meta) {
-      const deadline = Date.now() + 4000;
-      while (Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        meta = await ociStorage.getObjectMetadata(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
-        if (meta) break;
-
-        const promoted = await tryPromoteFromQuarantine(objectKey);
-        if (promoted) {
-          meta = await ociStorage.getObjectMetadata(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
-          if (meta) break;
-        }
-      }
-    }
-
-    if (!meta) {
-      const quarantineKey = `quarantine/${objectKey}`;
-      const inQuarantine = await ociStorage.verifyObjectExists(env.OCI_BUCKET_DOCS_PRIVATE, quarantineKey);
-      if (inQuarantine) {
-        throw new AppError(422, "El archivo sigue en validacion antivirus y aun no pasa a produccion. Reintente en unos segundos.");
-      }
-      throw new AppError(422, "El archivo subido aun no esta disponible para registro. Reintente en unos segundos.");
-    }
-
-    if (meta.sizeBytes !== sizeBytes) {
-      throw new AppError(400, "El tamano del archivo no coincide con el declarado");
-    }
-
-    return meta;
-  },
-
   confirmDocumentUpload: async (
-    actor: { userId: string; sub: string; role: string; email: string },
-    objectKey: string,
-    fileName: string,
-    mimeType: string,
-    sizeBytes: number,
-    ipAddress?: string,
-    userAgent?: string,
+    actor: DocumentAccessActor,
+    payload: ConfirmDocumentUploadPayload,
+    meta?: RequestMeta,
   ) => {
+    const { objectKey, fileName, mimeType, sizeBytes } = payload;
     if (!objectKey.startsWith(`documents/${actor.userId}/`)) {
       throw new AppError(403, "El objectKey no pertenece a este usuario");
     }
@@ -211,12 +105,12 @@ export const documentService = {
       throw new AppError(422, "El archivo subido aun no esta disponible para registro. Reintente en unos segundos.");
     }
 
-    const meta = await ociStorage.getObjectMetadata(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
-    if (!meta) {
+    const ociMeta = await ociStorage.getObjectMetadata(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
+    if (!ociMeta) {
       throw new AppError(422, "No se pudo leer metadata del archivo en producción");
     }
 
-    if (meta.sizeBytes !== sizeBytes) {
+    if (ociMeta.sizeBytes !== sizeBytes) {
       throw new AppError(400, "El tamaño del archivo no coincide con el declarado");
     }
 
@@ -228,7 +122,7 @@ export const documentService = {
       objectKey,
       originalName: storedFileName,
       mimeType,
-      sizeBytes: meta.sizeBytes,
+      sizeBytes: ociMeta.sizeBytes,
     });
 
     const { createAuditRepository } = await import("./repository/audit.repository");
@@ -239,9 +133,9 @@ export const documentService = {
       action: "file.uploaded",
       resourceType: "file",
       resourceId: objectKey,
-      ipAddress: ipAddress || "",
-      userAgent: userAgent || "",
-      details: { originalName: storedFileName, mimeType, sizeBytes: meta.sizeBytes },
+      ipAddress: meta?.ipAddress || "",
+      userAgent: meta?.userAgent || "",
+      details: { originalName: storedFileName, mimeType, sizeBytes: ociMeta.sizeBytes },
     });
 
     return { objectKey };
@@ -273,66 +167,10 @@ export const documentService = {
     return { url, expiresInSeconds: 300 };
   },
 
-  getDocumentAccessUrlForCollabCommand: async (
-    objectKey: string,
-    forceDownload = false,
-  ) => {
-    const exists = await ociStorage.verifyObjectExists(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
-    if (!exists) {
-      throw new AppError(404, "Documento no encontrado");
-    }
-
-    const url = await ociStorage.createPrivateDocumentUrl(objectKey, forceDownload);
-    return { url, expiresInSeconds: 300 };
-  },
-
-  deleteDocumentForCollabCommand: async (
-    objectKey: string,
-    actor?: { userId: string; sub: string; role: string; email: string }
-  ) => {
-    assertCollabObjectKey(objectKey);
-    const [asset] = await db
-      .select({ id: mediaAssets.id, originalName: mediaAssets.originalName })
-      .from(mediaAssets)
-      .where(and(eq(mediaAssets.objectKey, objectKey), eq(mediaAssets.kind, "document")))
-      .limit(1);
-
-    const exists = await ociStorage.verifyObjectExists(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
-    const quarantineKey = `quarantine/${objectKey}`;
-    const existsInQuarantine = await ociStorage.verifyObjectExists(env.OCI_BUCKET_DOCS_PRIVATE, quarantineKey);
-    if (!asset && !exists && !existsInQuarantine) {
-      throw new AppError(404, "Documento no encontrado");
-    }
-
-    await deleteIfExists(env.OCI_BUCKET_DOCS_PRIVATE, objectKey);
-    await deleteIfExists(env.OCI_BUCKET_DOCS_PRIVATE, quarantineKey);
-    if (asset) {
-      await db.delete(mediaAssets).where(eq(mediaAssets.id, asset.id));
-    }
-
-    if (actor) {
-      const { createAuditRepository } = await import("./repository/audit.repository");
-      await createAuditRepository(db).createAuditLog({
-        actorSub: actor.sub,
-        actorEmail: actor.email,
-        actorRole: actor.role as any,
-        action: "file.deleted",
-        resourceType: "file",
-        resourceId: objectKey,
-        ipAddress: "",
-        userAgent: "",
-        details: { originalName: asset?.originalName || objectKey, trigger: "collab_command" },
-      });
-    }
-
-    return { deleted: true };
-  },
-
   deleteDocument: async (
-    actor: { userId: string; sub: string; role: string; email: string },
+    actor: DocumentAccessActor,
     objectKey: string,
-    ipAddress?: string,
-    userAgent?: string,
+    meta?: RequestMeta,
   ) => {
     const [asset] = await db
       .select({ id: mediaAssets.id, userId: mediaAssets.userId, originalName: mediaAssets.originalName })
@@ -343,7 +181,7 @@ export const documentService = {
     if (!asset) {
       throw new AppError(404, "Documento no encontrado");
     }
-    
+
     const isOwner = asset.userId === actor.userId || asset.userId === actor.sub;
     const isAdmin = actor.role === "admin";
     const allowed = isOwner || isAdmin;
@@ -363,8 +201,8 @@ export const documentService = {
       action: "file.deleted",
       resourceType: "file",
       resourceId: objectKey,
-      ipAddress: ipAddress || "",
-      userAgent: userAgent || "",
+      ipAddress: meta?.ipAddress || "",
+      userAgent: meta?.userAgent || "",
       details: { originalName: asset.originalName },
     });
 
@@ -402,4 +240,14 @@ export const documentService = {
 
     logger.info({ userSub }, "[documentService] PII cleanup complete for crm-media");
   },
+
+  // Collab delegations
+  generateDocumentUploadUrlForCollabCommand:
+    collabDocumentService.generateDocumentUploadUrlForCollabCommand,
+  resolveDocumentMetadataForCollabCommand:
+    collabDocumentService.resolveDocumentMetadataForCollabCommand,
+  getDocumentAccessUrlForCollabCommand:
+    collabDocumentService.getDocumentAccessUrlForCollabCommand,
+  deleteDocumentForCollabCommand:
+    collabDocumentService.deleteDocumentForCollabCommand,
 };

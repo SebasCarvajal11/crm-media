@@ -41,14 +41,15 @@ El código fuente en `src/modules` está estrictamente desacoplado en dos subdom
 
 ### A. Subdominio Media (`src/modules/media`)
 - **`avatar.service.ts`**: Procesamiento de imágenes de perfil con `sharp` (redimensionamiento cuadrado, compresión WebP/PNG, múltiples resoluciones y versionado incremental).
-- **`document.service.ts`**: Gestión del ciclo de vida de documentos: generación de URLs prefirmadas para subida y lectura, confirmación de carga y borrado seguro.
+- **`document.service.ts`**: Gestión del ciclo de vida de documentos de usuario: generación de URLs prefirmadas para subida y lectura, confirmación de carga y borrado seguro.
+- **`collab-document.service.ts`**: Comandos asíncronos de colaboración para `crm-collab`, validación y promoción desde cuarentena tras escaneo antivirus.
 - **`storage.service.ts`**: Abstracción del almacenamiento en OCI Object Storage, cálculo de estadísticas de disco local y cuotas en la nube.
 - **`media.controller.ts` & `media.routes.ts`**: Controladores HTTP expuestos hacia el API Gateway.
 
 ### B. Subdominio Email (`src/modules/email`)
 - **`email.authorization.ts`**: Validador de seguridad máquina a máquina (M2M). Verifica Service JWT (RS256) contra el JWKS del emisor y comprueba el `bodyHash` SHA-256.
 - **`email.crypto.ts`**: Cifrado simétrico AES-256-GCM para proteger los datos de los correos en reposo mientras esperan en la cola de Redis.
-- **`email.queue.ts`**: Productor de trabajos en la cola BullMQ (`mod-media-email`) con backoff exponencial.
+- **`email.queue.ts`**: Productor de trabajos en la cola BullMQ (`crm-media-email`) con backoff exponencial.
 - **`email.processor.ts`**: Consumidor de BullMQ que descifra el payload y despacha a través de Nodemailer.
 - **`email.mailer.ts`**: Cliente Nodemailer conectado a Brevo SMTP (o modo `log` en desarrollo local).
 - **`email.templates.ts`**: Plantillas tipadas para flujos de identidad (`password_reset`, `client_invite`, etc.).

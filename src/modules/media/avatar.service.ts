@@ -47,15 +47,17 @@ const cleanupOldAvatarVersions = async (userId: string, currentVersion: number) 
     );
 };
 
+export type UploadAvatarOptions = {
+  originalName: string;
+  rawBuffer: Buffer;
+  actor?: { userId: string; sub: string; role: string; email: string };
+  ipAddress?: string;
+  userAgent?: string;
+};
+
 export const avatarService = {
-  uploadAvatar: async (
-    userId: string,
-    originalName: string,
-    rawBuffer: Buffer,
-    actor?: { userId: string; sub: string; role: string; email: string },
-    ipAddress?: string,
-    userAgent?: string,
-  ) => {
+  uploadAvatar: async (userId: string, options: UploadAvatarOptions) => {
+    const { originalName, rawBuffer, actor, ipAddress, userAgent } = options;
     const storedOriginalName = sanitizeStoredFileName(originalName);
     const detected = await detectFileType(rawBuffer);
     if (!detected || !imageMimes.has(detected.mime)) throw new AppError(400, "Archivo de imagen invalido");

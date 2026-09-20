@@ -21,7 +21,7 @@ Este documento define la interacción de `crm-media` con los componentes del eco
                ▼               ▼
       ┌──────────────────┐   ┌──────────────────┐
       │  Redis Streams   │   │   BullMQ Queue   │
-      │ collab.media-... │   │ mod-media-email  │
+      │ collab.media-... │   │ crm-media-email  │
       └────────┬─────────┘   └────────┬─────────┘
                │                      │
                ▼                      ▼
@@ -53,7 +53,7 @@ Este documento define la interacción de `crm-media` con los componentes del eco
 
 ## 3. Motor de Correo Electrónico con BullMQ y Brevo SMTP
 
-- **Cola de Mensajes**: `mod-media-email` gestionada mediante BullMQ en Redis.
+- **Cola de Mensajes**: `crm-media-email` gestionada mediante BullMQ en Redis.
 - **Worker Dedicado**: `pnpm worker:email` ejecuta el procesamiento concurrente de trabajos:
   - Extrae el trabajo de la cola.
   - Descifra la carga útil mediante la clave simétrica `EMAIL_ENCRYPTION_KEY` (AES-256-GCM).

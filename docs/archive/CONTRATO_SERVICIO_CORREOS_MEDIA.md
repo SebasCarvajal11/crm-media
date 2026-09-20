@@ -1,4 +1,4 @@
-﻿# Contrato de Integración: Servicio Centralizado de Correos CIMA (`crm-media`)
+# Contrato de Integración: Servicio Centralizado de Correos CIMA (`crm-media`)
 
 Este documento especifica el contrato de API para que el módulo de **Marketing** (Java Spring Boot) y cualquier otro microservicio de la plataforma CIMA puedan despachar correos electrónicos (campañas, boletines, notificaciones y correos transaccionales) a través del motor centralizado en **`crm-media`**.
 
@@ -13,7 +13,7 @@ Este documento especifica el contrato de API para que el módulo de **Marketing*
   - **A través de KrakenD API Gateway**: `http://api-gateway:8080/api/v1/emails/send` (o `http://localhost:28080/api/v1/emails/send` en host)
 - **Transporte Subyacente**: Relay SMTP de **Brevo** (`smtp-relay.brevo.com`) en producción / modo `log` en desarrollo local.
 - **Modos de Despacho**:
-  - **Asíncrono (`sync: false`, predeterminado)**: El mensaje se valida, se encola en BullMQ (`mod-media-email`) y responde de inmediato con `HTTP 202 Accepted` y el identificador de trabajo. Recomendado para alto volumen y campañas.
+  - **Asíncrono (`sync: false`, predeterminado)**: El mensaje se valida, se encola en BullMQ (`crm-media-email`) y responde de inmediato con `HTTP 202 Accepted` y el identificador de trabajo. Recomendado para alto volumen y campañas.
   - **Sincrónico (`sync: true`)**: El servicio aguarda la confirmación de transmisión del servidor SMTP y responde con `HTTP 200 OK`.
 
 ---

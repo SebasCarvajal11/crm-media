@@ -17,14 +17,14 @@ let isShuttingDown = false;
 const shutdown = async (signal: string) => {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  logger.info({ signal, topic: "shutdown" }, "cerrando recursos de mod-media");
+  logger.info({ signal, topic: "shutdown" }, "cerrando recursos de crm-media");
 
   await new Promise<void>((resolve, reject) => {
     serverRef.close((err) => (err ? reject(err) : resolve()));
   }).catch((err) => logger.error({ err, topic: "shutdown" }, "server.close"));
 
   await closeRedisConnections();
-  logger.info({ topic: "shutdown" }, "mod-media finalizado");
+  logger.info({ topic: "shutdown" }, "crm-media finalizado");
 };
 
 const exitAfterShutdown = (signal: string) => {
@@ -34,4 +34,4 @@ const exitAfterShutdown = (signal: string) => {
 process.once("SIGINT", () => exitAfterShutdown("SIGINT"));
 process.once("SIGTERM", () => exitAfterShutdown("SIGTERM"));
 
-logger.info({ port: env.PORT }, "mod-media listening");
+logger.info({ port: env.PORT }, "crm-media listening");

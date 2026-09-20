@@ -1,13 +1,15 @@
 openapi: 3.0.3
 info:
-  title: CIMA CRM - mod-media
+  title: CIMA CRM - crm-media
   version: 1.0.0
   description: |
     Microservicio de media para avatares y documentos. Expone contratos directos
     del servicio; el gateway puede publicarlos como proxy sin fusionar specs.
 servers:
   - url: http://localhost:3002
-    description: mod-media directo (desarrollo)
+    description: Desarrollo local
+  - url: http://localhost:28080/media
+    description: A través de API Gateway (KrakenD)
 tags:
   - name: Sistema
   - name: Documentacion
@@ -16,15 +18,16 @@ tags:
   - name: Correo
 components:
   securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT obtenido del módulo de autenticación
     EmailServiceJWT:
       type: http
       scheme: bearer
       bearerFormat: JWT
-    GatewayIdentity:
-      type: apiKey
-      in: header
-      name: X-User-Id
-      description: Headers de identidad propagados por el gateway confiable.
+      description: Token JWT de servicio para despacho de emails
   schemas:
     Error:
       type: object
@@ -71,7 +74,7 @@ components:
         data:
           type: object
 security:
-  - GatewayIdentity: []
+  - BearerAuth: []
 paths:
   /api/v1/health:
     get:
@@ -91,7 +94,7 @@ paths:
                     example: ok
                   service:
                     type: string
-                    example: mod-media
+                    example: crm-media
   /api/v1/openapi.yaml:
     get:
       tags: [Documentacion]

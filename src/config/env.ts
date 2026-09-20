@@ -57,14 +57,6 @@ const envSchema = z.object({
   COLLAB_JWT_PUBLIC_KEY: z.string().min(1).optional(),
   /** Issuer claim esperado en los comandos. */
   COLLAB_JWT_ISS: z.string().default("crm-collab"),
-  /**
-   * Si true, el servicio confía en los claims propagados (X-User-*) tras validación.
-   * Si false, cada request debe incluir un Bearer JWT válido.
-   */
-  TRUST_GATEWAY_JWT_HEADERS: z
-    .union([z.literal("true"), z.literal("false"), z.literal("1"), z.literal("0")])
-    .default("false")
-    .transform((v) => v === "true" || v === "1"),
   /** SPKI PEM (RSA) para verificación local de JWT (sin JWKS). */
   JWT_PUBLIC_KEY: z.string().min(1).optional(),
   /** URI del endpoint JWKS de crm-auth. Alternativa a JWT_PUBLIC_KEY. */
@@ -159,11 +151,11 @@ const envSchema = z.object({
       message: "COLLAB_JWKS_URI o COLLAB_JWT_PUBLIC_KEY es requerido cuando REDIS_URL habilita comandos de media",
     });
   }
-  if (!data.TRUST_GATEWAY_JWT_HEADERS && !data.JWT_PUBLIC_KEY && !data.JWKS_URI) {
+  if (!data.JWT_PUBLIC_KEY && !data.JWKS_URI) {
     ctx.addIssue({
       code: "custom",
       path: ["JWT_PUBLIC_KEY"],
-      message: "JWT_PUBLIC_KEY o JWKS_URI es requerida cuando TRUST_GATEWAY_JWT_HEADERS=false",
+      message: "JWT_PUBLIC_KEY o JWKS_URI es requerida para la verificación de tokens",
     });
   }
 });
@@ -171,7 +163,7 @@ const envSchema = z.object({
 const logger = getLogger();
 const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
-  logger.error({ fields: parsed.error.flatten().fieldErrors }, "Invalid mod-media env vars");
+  logger.error({ fields: parsed.error.flatten().fieldErrors }, "Invalid crm-media env vars");
   process.exit(1);
 }
 

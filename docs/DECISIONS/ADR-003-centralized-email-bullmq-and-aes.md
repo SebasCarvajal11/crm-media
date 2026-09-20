@@ -31,7 +31,7 @@ Permitir que cada microservicio configure su propio cliente SMTP generaba:
 - **Desventajas**: Los correos electrónicos contienen datos sensibles (tokens de reseteo, correos, nombres) que quedarían expuestos en memoria y copias de seguridad de Redis.
 
 ### Opción 3 (Elegida): Motor Centralizado con Cola BullMQ y Cifrado AES-256-GCM
-- **Descripción**: Centralizar el despacho en `crm-media` (`POST /api/v1/emails/send`). Al recibir el comando, se valida el esquema, se cifra el payload con AES-256-GCM y se encola en BullMQ (`mod-media-email`). El worker `email.worker.ts` descifra en el momento del envío hacia Brevo SMTP.
+- **Descripción**: Centralizar el despacho en `crm-media` (`POST /api/v1/emails/send`). Al recibir el comando, se valida el esquema, se cifra el payload con AES-256-GCM y se encola en BullMQ (`crm-media-email`). El worker `email.worker.ts` descifra en el momento del envío hacia Brevo SMTP.
 
 ---
 

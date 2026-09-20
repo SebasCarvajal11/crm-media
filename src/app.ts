@@ -26,7 +26,7 @@ import { initLogger } from "./shared/logger";
 import { requestLoggerMiddleware } from "./shared/middlewares/request-logger.middleware";
 import { listMediaCommandDlqEntries, replayMediaCommandDlqEntry } from "./workers/media-command-dlq";
 
-const logger = initLogger("mod-media");
+const logger = initLogger("crm-media");
 const healthStartTime = Date.now();
 
 /** Instancia de métricas compartida con los workers de este proceso. */

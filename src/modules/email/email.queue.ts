@@ -1,9 +1,9 @@
-﻿import { Queue } from "bullmq";
+import { Queue } from "bullmq";
 import { getRedisConnection } from "../../shared/redis";
 import { env } from "../../config/env";
 import type { EmailDispatchJob } from "./email.types";
 
-export const EMAIL_QUEUE_NAME = "mod-media-email";
+export const EMAIL_QUEUE_NAME = "crm-media-email";
 
 let emailQueue: Queue<EmailDispatchJob> | undefined;
 
