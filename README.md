@@ -1,99 +1,77 @@
-# CRM Media
+# CRM Media Service
 
-> Servicio de almacenamiento de archivos y medios para CIMA CRM.
+> Servicio de almacenamiento en la nube, protección antivirus y despacho centralizado de correos para CIMA CRM.
+
+[![Status](https://img.shields.io/badge/status-active-success.svg)]()
+[![Platform](https://img.shields.io/badge/platform-CIMA%20CRM-blue.svg)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-green.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
+
+---
 
 ## Propósito
 
-`crm-media` gestiona el almacenamiento de avatares y documentos privados en OCI Object Storage, validación antivirus con ClamAV, y generación de URLs pre-firmadas de acceso. Procesa comandos de `crm-collab` via Redis Streams, verificando la firma JWT de servicio antes de ejecutar cualquier operación. No tiene UI propia; toda interacción es via API o eventos asíncronos.
+`crm-media` gestiona el almacenamiento seguro de avatares y documentos privados en Oracle Cloud Infrastructure (OCI Object Storage), la validación antivirus en tiempo real con ClamAV, la generación de URLs prefirmadas (PAR) y el motor unificado de despacho de correos electrónicos transaccionales y de marketing mediante BullMQ y Brevo SMTP.
 
-## Entorno
+---
 
+## Documentación Detallada (`docs/`)
+
+Para consultar las especificaciones técnicas completas y guías de arquitectura, visita la suite documental:
+
+- [**Guía de Arquitectura (`docs/ARCHITECTURE.md`)**](./docs/ARCHITECTURE.md): Diseño modular (`media` y `email`), OCI, ClamAV y workers en background.
+- [**Modelo de Dominio (`docs/DOMAIN.md`)**](./docs/DOMAIN.md): Avatares (Sharp), documentos PAR y despacho de correos (plantillas vs contenido libre).
+- [**Contratos de API (`docs/API.md`)**](./docs/API.md): Endpoints públicos en KrakenD y endpoint interno protegido `POST /api/v1/emails/send`.
+- [**Base de Datos y Persistencia (`docs/DATABASE.md`)**](./docs/DATABASE.md): Esquema PostgreSQL `schema_media`, tabla `media_assets` y particiones de `audit_logs`.
+- [**Seguridad y Protección (`docs/SECURITY.md`)**](./docs/SECURITY.md): Antivirus ClamAV, magic numbers, Service JWT (RS256) con `bodyHash` y cifrado AES-256-GCM.
+- [**Integraciones y Plataforma (`docs/INTEGRATIONS.md`)**](./docs/INTEGRATIONS.md): Redis Streams (`media-commands`, `asset-responses`), colas BullMQ, Brevo SMTP y OCI.
+- [**Estrategia de Pruebas (`docs/TESTING.md`)**](./docs/TESTING.md): Pruebas unitarias Vitest, pruebas de contrato OpenAPI y suites Hurl E2E.
+- [**Decisiones Arquitectónicas (`docs/DECISIONS/`)**](./docs/DECISIONS/README.md): Registros formales de decisiones (ADRs).
+
+---
+
+## Inicio Rápido Local
+
+### 1. Configuración de Entorno
 ```bash
 cp .env.example .env
-# Completar: DATABASE_URL, REDIS_URL, JWKS_URI, OCI_*, CLAMAV_HOST
+# Configurar variables locales o ejecutar pnpm setup:env desde crm-infra
 ```
 
-| Variable | Descripción | Requerida |
-|----------|-------------|-----------|
-| `DATABASE_URL` | Conexión PostgreSQL (`schema_media`) | ✅ |
-| `REDIS_URL` | Redis para media-commands stream | ✅ |
-| `JWKS_URI` | JWKS de `crm-auth` para validar JWTs de usuario | ✅ |
-| `COLLAB_JWT_PUBLIC_KEY` | Clave pública RSA de `crm-collab` para verificar comandos | ✅ |
-| `OCI_CONFIG_FILE_PATH` | Path al archivo de config OCI (fuera del repo) | ✅ |
-| `OCI_NAMESPACE` | Namespace de OCI Object Storage | ✅ |
-| `OCI_BUCKET_*` | Nombres de los buckets OCI | ✅ |
-| `CLAMAV_HOST` | Host del servicio ClamAV | ✅ |
-| `CLAMAV_PORT` | Puerto de ClamAV (default: 3310) | ✅ |
-| `SERVICE_VERSION` | Versión semver del servicio | ✅ |
-
-Ver [`.env.example`](./.env.example) para referencia.
-
-> **Importante**: Las credenciales OCI reales deben estar en un archivo externo al repo. Nunca commitear claves OCI.
-
-## Local
-
+### 2. Instalación y Puesta en Marcha
 ```bash
 pnpm install
-pnpm db:push          # aplicar migraciones Drizzle
-pnpm oci:verify       # verificar conectividad OCI (opcional en dev sin OCI real)
-pnpm dev              # servidor con hot-reload en :3002
+pnpm db:push                  # sincronizar esquema schema_media
+pnpm dev                      # servidor con hot-reload en http://localhost:3002
 ```
 
-Endpoints útiles:
+### 3. Workers de Background (Procesos Independientes)
+```bash
+pnpm worker:media-commands    # procesa comandos de crm-collab vía Redis Streams
+pnpm worker:quarantine-scan   # escaneo antivirus periódico en OCI
+pnpm worker:email             # procesador de cola BullMQ y despacho vía Brevo SMTP
+```
 
-- Health: `http://localhost:3002/api/v1/health` (incluye estado de OCI y ClamAV)
-- Métricas: `http://localhost:3002/api/v1/metrics`
-- OpenAPI: `http://localhost:3002/api/v1/openapi.yaml`
+---
 
-Workers (procesos separados):
+## Pruebas y Validación de Calidad
 
 ```bash
-pnpm worker:media-commands    # procesa comandos de crm-collab via Redis Stream
-pnpm worker:quarantine-scan   # escaneo antivirus de archivos en cuarentena
+pnpm test:unit                # pruebas unitarias aisladas (Vitest)
+pnpm test:contract            # pruebas de contrato Hurl contra el API Gateway
+pnpm openapi:check            # validación de sintaxis en openapi.yaml
+pnpm gateway:validate         # verificación de paridad entre OpenAPI y Gateway Manifest
+pnpm oci:verify               # prueba de conectividad y buckets en OCI
+pnpm build                    # verificación estricta de tipos TypeScript
 ```
 
-Utilidades:
+---
 
-```bash
-pnpm test:unit        # unitarios Vitest
-pnpm test:contract    # contrato Hurl contra gateway
-```
+## Despliegue en Producción
 
-## Media Commands DLQ
-
-Comandos de `crm-collab` que fallan tras `MEDIA_COMMANDS_MAX_RETRIES` se mueven a la DLQ con metadata completa. Se publica automáticamente una respuesta `file.command-failed` al stream de respuestas para que `crm-collab` pueda reaccionar.
-
-## Deploy
+El despliegue está automatizado mediante GitHub Actions y orquestado por el script canónico de slots Blue/Green:
 
 ```bash
 # Desde crm-infra/
 ./deploy/remote/deploy-component.sh media
 ```
-
-Ver [crm-infra/ONBOARDING.md](../crm-infra/ONBOARDING.md).
-
-## Tests
-
-```bash
-pnpm test:unit      # unitarios Vitest
-pnpm build          # verificación de tipos TypeScript
-pnpm oci:verify     # conectividad OCI
-```
-
-## Contrato público
-
-- OpenAPI: [`openapi/openapi.yaml`](./openapi/openapi.yaml)
-- Gateway manifest: [`gateway/gateway.manifest.json`](./gateway/gateway.manifest.json)
-
-## Integración con Collaboration
-
-Los binarios pertenecen a Media y el contexto de negocio pertenece a Collaboration. Para archivos de proyecto, Media solo procesa comandos firmados de `crm-collab` desde `stream:collab.media-commands` y responde en `stream:media.asset-responses` con el mismo `correlationId`.
-
-La firma es un JWT de servicio: el contrato valida su formato y el worker de Media verifica criptográficamente emisor, audiencia, propósito, correlación y `objectKey`. Los errores no recuperables se registran en la DLQ y producen una respuesta `file.command-failed` para evitar esperas silenciosas.
-
-## Servicio Centralizado de Correo Electrónico
-
-Media centraliza el despacho asíncrono y resiliente de correos transaccionales y de negocio para todos los microservicios mediante BullMQ y transporte Brevo SMTP (con TLS SNI estricto).
-
-Ver la guía completa de integración y arquitectura en [`docs/email-service.md`](./docs/email-service.md).
-
