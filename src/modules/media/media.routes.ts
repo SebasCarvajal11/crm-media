@@ -113,7 +113,8 @@ mediaRoutes.get(
   "/storage/stats",
   requireRole("admin"),
   async (c) => {
-    const payload = await mediaController.getStorageStats();
+    const forceRefresh = c.req.query("refresh") === "true";
+    const payload = await mediaController.getStorageStats(forceRefresh);
     return c.json(payload);
   },
 );

@@ -80,6 +80,7 @@ export const storageService = {
         .execute(sql`
           SELECT count(*)::int as count, coalesce(sum(size_bytes), 0)::bigint as bytes 
           FROM schema_collab.project_files
+          WHERE coalesce(is_purged, false) = false
         `)
         .catch(() => ({ rows: [{ count: 0, bytes: 0 }] })),
     ]);

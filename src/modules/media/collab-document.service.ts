@@ -37,7 +37,7 @@ export const tryPromoteFromQuarantine = async (objectKey: string): Promise<boole
 };
 
 export function assertCollabObjectKey(objectKey: string): void {
-  if (!objectKey.startsWith("projects/")) {
+  if (!objectKey.startsWith("projects/") && !objectKey.startsWith("clients/")) {
     throw new AppError(403, "El objectKey no pertenece a archivos de colaboracion");
   }
 }

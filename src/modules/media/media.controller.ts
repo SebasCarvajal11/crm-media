@@ -127,8 +127,8 @@ export const mediaController = {
     const data = await avatarService.getCurrentAvatarsByUsers(userIds);
     return { data };
   },
-  getStorageStats: async () => {
-    const data = await storageService.getStorageStats();
+  getStorageStats: async (forceRefresh = false) => {
+    const data = await storageService.getStorageStats(forceRefresh);
     return { data };
   },
 };
