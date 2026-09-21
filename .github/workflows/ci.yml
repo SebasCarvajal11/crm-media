@@ -91,6 +91,7 @@ jobs:
           OCI_PAR_PRUNE_MAX: "80"
           AVATAR_VERSIONS_TO_KEEP: "3"
           MOD_COLLAB_URL: http://127.0.0.1:3001
+          JWKS_URI: http://127.0.0.1:3000/api/v1/.well-known/jwks.json
         run: pnpm oci:verify
 
       - name: OCI verify skipped

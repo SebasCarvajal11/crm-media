@@ -151,7 +151,7 @@ const envSchema = z.object({
       message: "COLLAB_JWKS_URI o COLLAB_JWT_PUBLIC_KEY es requerido cuando REDIS_URL habilita comandos de media",
     });
   }
-  if (!data.JWT_PUBLIC_KEY && !data.JWKS_URI) {
+  if (data.NODE_ENV !== "test" && !data.JWT_PUBLIC_KEY && !data.JWKS_URI) {
     ctx.addIssue({
       code: "custom",
       path: ["JWT_PUBLIC_KEY"],
