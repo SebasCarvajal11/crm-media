@@ -2,6 +2,7 @@ import { statfs } from "node:fs/promises";
 import { sql } from "drizzle-orm";
 import { db } from "../../db/connection";
 import { mediaAssets } from "../../db/schema";
+import { env } from "../../config/env";
 
 export interface DiskStats {
   totalBytes: number;
@@ -66,6 +67,25 @@ export const storageService = {
   async getCloudStorageStats(): Promise<CloudStorageStats> {
     const quotaBytes = Number(process.env.OCI_OBJECT_STORAGE_QUOTA_BYTES) || DEFAULT_OCI_QUOTA_BYTES;
 
+    const fetchCollabMetrics = async (): Promise<{ count: number; bytes: number }> => {
+      try {
+        const collabBase = (env.COLLAB_SERVICE_URL || "http://crm-collab:3001").replace(/\/$/, "");
+        const res = await fetch(`${collabBase}/api/v1/internal/storage/metrics`, {
+          signal: AbortSignal.timeout(3000),
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { count?: number; bytes?: number };
+          return {
+            count: Number(data?.count) || 0,
+            bytes: Number(data?.bytes) || 0,
+          };
+        }
+      } catch {
+        // Fallback defensivo si collab no está accesible
+      }
+      return { count: 0, bytes: 0 };
+    };
+
     const [mediaRows, collabRes] = await Promise.all([
       db
         .select({
@@ -76,13 +96,7 @@ export const storageService = {
         .from(mediaAssets)
         .groupBy(mediaAssets.kind)
         .catch(() => []),
-      db
-        .execute(sql`
-          SELECT count(*)::int as count, coalesce(sum(size_bytes), 0)::bigint as bytes 
-          FROM schema_collab.project_files
-          WHERE coalesce(is_purged, false) = false
-        `)
-        .catch(() => ({ rows: [{ count: 0, bytes: 0 }] })),
+      fetchCollabMetrics(),
     ]);
 
     let documentsCount = 0;
@@ -102,9 +116,8 @@ export const storageService = {
       }
     }
 
-    const firstCollab = (collabRes as any)?.rows?.[0];
-    const projectFilesCount = Number(firstCollab?.count) || 0;
-    const projectFilesBytes = Number(firstCollab?.bytes) || 0;
+    const projectFilesCount = Number(collabRes.count) || 0;
+    const projectFilesBytes = Number(collabRes.bytes) || 0;
 
     const usedBytes = documentsBytes + avatarsBytes + projectFilesBytes;
     const availableBytes = Math.max(0, quotaBytes - usedBytes);

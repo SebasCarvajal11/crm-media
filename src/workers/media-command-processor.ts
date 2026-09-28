@@ -36,7 +36,7 @@ export async function publishResponse(response: Record<string, unknown>): Promis
   );
 }
 
-export async function processCommand(command: MediaCommand): Promise<void> {
+export async function executeCommand(command: MediaCommand): Promise<Record<string, unknown>> {
   if (command.type === "file.upload-url-requested") {
     const upload = await collabDocumentService.generateDocumentUploadUrlForCollabCommand(
       command.objectKey,
@@ -44,14 +44,13 @@ export async function processCommand(command: MediaCommand): Promise<void> {
       command.mimeType,
       command.sizeBytes,
     );
-    await publishResponse({
+    return {
       type: "file.upload-url-created",
       correlationId: command.correlationId,
       objectKey: command.objectKey,
       uploadUrl: upload.uploadUrl,
       expiresInSeconds: upload.expiresInSeconds,
-    });
-    return;
+    };
   }
 
   if (command.type === "file.metadata-requested") {
@@ -61,14 +60,13 @@ export async function processCommand(command: MediaCommand): Promise<void> {
       command.mimeType,
       command.sizeBytes,
     );
-    await publishResponse({
+    return {
       type: "file.metadata-resolved",
       correlationId: command.correlationId,
       objectKey: command.objectKey,
       sizeBytes: metadata.sizeBytes,
       mimeType: metadata.mimeType,
-    });
-    return;
+    };
   }
 
   if (command.type === "file.access-requested") {
@@ -76,21 +74,25 @@ export async function processCommand(command: MediaCommand): Promise<void> {
       command.objectKey,
       command.forceDownload,
     );
-    await publishResponse({
+    return {
       type: "file.access-granted",
       correlationId: command.correlationId,
       objectKey: command.objectKey,
       url: access.url,
       expiresInSeconds: access.expiresInSeconds,
-    });
-    return;
+    };
   }
 
   // file.delete-requested
   await collabDocumentService.deleteDocumentForCollabCommand(command.objectKey, command.actor);
-  await publishResponse({
+  return {
     type: "file.deleted",
     correlationId: command.correlationId,
     objectKey: command.objectKey,
-  });
+  };
+}
+
+export async function processCommand(command: MediaCommand): Promise<void> {
+  const result = await executeCommand(command);
+  await publishResponse(result);
 }

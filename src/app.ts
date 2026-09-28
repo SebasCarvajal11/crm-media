@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { mediaRoutes } from "./modules/media/media.routes";
+import { internalDocumentsRoutes } from "./modules/media/internal-documents.routes";
 import { emailRoutes } from "./modules/email/email.routes";
 import { createGatewayRoutes } from "./gateway/gateway.routes";
 import { createOpenApiRoutes } from "./openapi/openapi.routes";
@@ -81,6 +82,7 @@ export const createApp = () => {
   const internalRoutes = new Hono<AppEnv>();
   internalRoutes.route("/api/v1", createGatewayRoutes());
   internalRoutes.route("/api/v1/emails", emailRoutes);
+  internalRoutes.route("/api/v1/internal/documents", internalDocumentsRoutes);
 
   // Ops / DLQ routes (internal only - protegidas por autenticación admin)
   const ops = new Hono<AppEnv>();

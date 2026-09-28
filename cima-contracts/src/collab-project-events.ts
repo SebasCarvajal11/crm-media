@@ -12,6 +12,9 @@ export const collabEventTypeSchema = z.enum([
   "task.updated",
   "task.moved",
   "task.assigned",
+  "task.blocked",
+  "task.unblocked",
+  "task.comment.created",
   "chat.message.internal",
   "chat.message.external",
   "chat.mention",
@@ -49,6 +52,7 @@ export const projectProjectionEventSchema = z.object({
   status: z.enum(["todo", "in_progress", "in_review", "completed"]),
   description: z.string().nullable(),
   progressPercent: z.number().int().min(0).max(100),
+  fileRepositoryUrl: z.string().url().nullable().optional(),
   isArchived: z.boolean(),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
@@ -116,6 +120,7 @@ export const fileApprovedEventSchema = z.object({
 });
 
 export const collabEventSchema = z.object({
+  id: z.string().uuid().optional(),
   version: z.literal(1).default(1),
   contractVersion: z.union([z.literal(1), z.literal(COLLAB_EVENT_CONTRACT_VERSION)]).default(COLLAB_EVENT_CONTRACT_VERSION),
   type: collabEventTypeSchema,

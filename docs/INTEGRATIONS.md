@@ -36,18 +36,18 @@ Este documento define la interacción de `crm-media` con los componentes del eco
 `crm-media` procesa solicitudes de almacenamiento colaborativo de forma asíncrona mediante Redis Streams:
 
 ### A. Consumo de Comandos de Medios (`stream:collab.media-commands`)
-- **Grupo de Consumo**: `media-commands-group`.
+- **Grupo de Consumo**: `group:media.commands` (definido en `STREAM_CONVENTIONS`).
 - **Tipos de Comandos Procesados**:
   - `file.upload-url-requested`: Emisión de URL prefirmada (PAR) para subida directa.
   - `file.metadata-requested`: Consulta de dimensiones, peso y tipo de un activo existente.
   - `file.access-requested`: Emisión de URL prefirmada temporal para visualización o descarga.
   - `file.delete-requested`: Eliminación definitiva del archivo en OCI y de sus registros asociados.
-- **Gestión de Respuestas**: Todo comando procesado emite un evento correlacionado en `stream:media.asset-responses` con el mismo `correlationId` para que `crm-collab` actualice su estado.
-- **Dead Letter Queue (DLQ)**: Comandos con errores no recuperables o firmas inválidas se aíslan en la DLQ para diagnóstico manual con el script `pnpm dlq:media:list`.
+- **Gestión de Respuestas**: Todo comando procesado emite un evento correlacionado en `stream:media.asset-responses` con el mismo `correlationId` para que `crm-collab` (`group:collab.media-responses`) actualice su estado.
+- **Dead Letter Queue (DLQ)**: Comandos con errores no recuperables o firmas inválidas se aíslan en `stream:media.commands-dlq` para diagnóstico manual con el script `pnpm dlq:media:list`.
 
 ### B. Consumo de Eventos de Identidad (`stream:auth.identity`)
-- **Grupo de Consumo**: `media-auth-identity`.
-- **Propósito**: Escuchar eventos de eliminación de usuarios (`auth.user.deleted`) para purgar o anonimizar los avatares huérfanos asociados.
+- **Grupo de Consumo**: `group:crm-media.auth.identity` (definido en `STREAM_CONVENTIONS`).
+- **Propósito**: Escuchar eventos de eliminación de usuarios (`user.deleted`) para purgar o anonimizar los avatares huérfanos asociados.
 
 ---
 

@@ -51,6 +51,8 @@ const envSchema = z.object({
   RATE_LIMIT_MEDIA_DOC_UPLOAD_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MEDIA_DOC_CONFIRM_MAX: z.coerce.number().int().positive().default(40),
   RATE_LIMIT_MEDIA_DOC_CONFIRM_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+  /** URL base del servicio crm-collab para llamadas M2M internas. */
+  COLLAB_SERVICE_URL: z.string().url().default("http://crm-collab:3001"),
   /** URI del endpoint JWKS de crm-collab para verificar comandos de media. */
   COLLAB_JWKS_URI: z.string().url().optional(),
   /** SPKI PEM (RSA) para verificación local de comandos de crm-collab (sin JWKS). */
