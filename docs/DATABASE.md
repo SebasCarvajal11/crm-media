@@ -60,3 +60,17 @@ Para permitir despliegues Blue/Green sin interrupción del servicio:
    - Se ejecuta el despliegue de la nueva versión del servicio que lee del nuevo campo.
 3. **Fase Contract**:
    - Una vez retirado el código anterior y verificado el funcionamiento, se ejecuta una migración de limpieza para retirar las columnas o índices obsoletos.
+
+---
+
+## 4. Configuración del Pool de Conexiones (`pg-config.ts`)
+
+Para evitar saturación de conexiones ante ráfagas concurrentes y aislar caídas de red:
+
+| Variable de Entorno | Valor por Defecto | Propósito Operativo |
+| :--- | :--- | :--- |
+| `DB_POOL_MAX` | `35` | Límite máximo de conexiones concurrentes en el pool. |
+| `DB_POOL_CONNECTION_TIMEOUT_MS` | `5000` (5s) | Timeout de adquisición para fallar rápido (*fail-fast*) si la BD no responde. |
+| `DB_POOL_IDLE_TIMEOUT_MS` | `30000` (30s) | Cierre automático de conexiones sin uso para liberar sockets. |
+| `DB_POOL_MAX_LIFETIME_SECONDS` | `1800` (30m) | Reciclado de conexiones para evitar conexiones degradadas. |
+
