@@ -2,6 +2,7 @@ import { AppError } from "../../shared/middlewares/error-handler.middleware";
 import { avatarService } from "./avatar.service";
 import { documentService } from "./document.service";
 import { storageService } from "./storage.service";
+import { getTrustedClientIp } from "@sebascarvajal11/cima-contracts/hono-security-middleware";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
@@ -19,7 +20,7 @@ const assertAvatarRequestWithinSizeLimit = (request: Request, file?: File) => {
 };
 
 const getContextFromRequest = (request: Request) => {
-  const ipAddress = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+  const ipAddress = getTrustedClientIp(request.headers);
   const userAgent = request.headers.get("user-agent") || "";
   return { ipAddress, userAgent };
 };

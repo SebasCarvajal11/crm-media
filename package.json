@@ -33,7 +33,7 @@
   },
   "homepage": "https://github.com/SebasCarvajal11/crm-media#readme",
   "dependencies": {
-    "@hono/node-server": "^1.19.14",
+    "@hono/node-server": "^1.19.15",
     "@sebascarvajal11/cima-contracts": "workspace:*",
     "bullmq": "^6.3.5",
     "clamscan": "^2.4.0",
@@ -41,7 +41,7 @@
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "file-type": "^20.5.0",
-    "hono": "^4.12.18",
+    "hono": "^4.13.12",
     "ioredis": "^5.11.1",
     "nodemailer": "^10.0.9",
     "oci-common": "^2.118.1",

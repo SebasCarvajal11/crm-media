@@ -1,5 +1,6 @@
 import { createMiddleware } from "hono/factory";
 import { AppError } from "./error-handler.middleware";
+import { getTrustedClientIp } from "@sebascarvajal11/cima-contracts/hono-security-middleware";
 
 interface RateRecord {
   count: number;
@@ -27,8 +28,7 @@ export function userRateLimit(opts: { maxAttempts: number; windowMs: number }) {
     const userKey =
       c.req.header("x-user-id")?.trim() ||
       c.req.header("x-user-sub")?.trim() ||
-      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
-      "unknown";
+      getTrustedClientIp(c);
     const bucketKey = `${c.req.path}:${userKey}`;
     const now = Date.now();
 
