@@ -4,25 +4,29 @@ ARG PNPM_VERSION=11.1.1
 FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 ENV CI=true
-RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
-COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
+RUN apk add --no-cache python3 make g++ \
+  && corepack enable \
+  && corepack prepare pnpm@${PNPM_VERSION} --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY tsconfig.json tsup.config.ts ./
 COPY cima-contracts ./cima-contracts
 RUN pnpm install --frozen-lockfile
-COPY . .
+COPY src ./src
 RUN pnpm build
+RUN pnpm prune --prod --ignore-scripts
 
-FROM ${NODE_IMAGE}
+FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
-ENV CI=true
+ENV NODE_ENV=production
 RUN apk add --no-cache tini \
   && corepack enable \
   && corepack prepare pnpm@${PNPM_VERSION} --activate
-COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
-COPY cima-contracts ./cima-contracts
-RUN pnpm install --frozen-lockfile && pnpm prune --prod --ignore-scripts
-COPY src ./src
-COPY tsconfig.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/cima-contracts ./cima-contracts
 COPY drizzle.config.ts ./
+COPY drizzle ./drizzle
 COPY gateway ./gateway
 COPY openapi ./openapi
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
@@ -35,4 +39,4 @@ EXPOSE 3002
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD ["docker-healthcheck.sh"]
 ENTRYPOINT ["tini", "--", "docker-entrypoint.sh"]
-CMD ["pnpm", "start"]
+CMD ["node", "dist/server.js"]
