@@ -8,7 +8,10 @@ import { detectFileType, imageMimes } from "../../shared/security/file-validatio
 import { scanBufferForVirus } from "../../shared/security/clamav";
 import { ociStorage } from "../../shared/storage/oci-storage";
 import { sanitizeStoredFileName } from "../../shared/sanitize-filename";
+import { getLogger } from "../../shared/logger";
 import { env } from "../../config/env";
+
+const logger = getLogger();
 
 const avatarSizes = [512, 256, 64] as const;
 
@@ -55,65 +58,152 @@ export type UploadAvatarOptions = {
   userAgent?: string;
 };
 
+interface ProcessedVariant {
+  px: number;
+  buffer: Buffer;
+  key: string;
+}
+
+interface UploadedVariant {
+  px: number;
+  key: string;
+  url: string;
+  sizeBytes: number;
+}
+
+interface RecordAvatarParams {
+  userId: string;
+  avatarVersion: number;
+  storedOriginalName: string;
+  uploaded: UploadedVariant[];
+  actor?: UploadAvatarOptions["actor"];
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+const processAvatarVariants = async (
+  rawBuffer: Buffer,
+  userId: string,
+  avatarVersion: number,
+  baseId: string
+): Promise<ProcessedVariant[]> => {
+  return Promise.all(
+    avatarSizes.map(async (px) => {
+      const buffer = await sharp(rawBuffer)
+        .resize(px, px, { fit: "cover" })
+        .webp({ quality: 84 })
+        .toBuffer();
+      const key = `avatars/${userId}/v${avatarVersion}/${baseId}_${px}.webp`;
+      return { px, buffer, key };
+    })
+  );
+};
+
+const uploadVariantsToOci = async (
+  variants: ProcessedVariant[]
+): Promise<{ uploaded: UploadedVariant[]; urls: Record<string, string> }> => {
+  const urls: Record<string, string> = {};
+  const uploaded = await Promise.all(
+    variants.map(async (v) => {
+      const url = await ociStorage.uploadPublicAvatar(v.key, v.buffer, "image/webp");
+      urls[String(v.px)] = url;
+      return { px: v.px, key: v.key, url, sizeBytes: v.buffer.length };
+    })
+  );
+  return { uploaded, urls };
+};
+
+const recordAvatarInDatabase = async (params: RecordAvatarParams): Promise<void> => {
+  const { userId, avatarVersion, storedOriginalName, uploaded, actor, ipAddress, userAgent } = params;
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${userId} || 'avatar_upload'))`);
+    for (const item of uploaded) {
+      await tx.insert(mediaAssets).values({
+        userId,
+        kind: "avatar",
+        avatarVersion,
+        width: item.px,
+        bucket: "public",
+        objectKey: item.key,
+        originalName: storedOriginalName,
+        mimeType: "image/webp",
+        sizeBytes: item.sizeBytes,
+      });
+    }
+    if (actor) {
+      const { createAuditRepository } = await import("./repository/audit.repository");
+      await createAuditRepository(tx).createAuditLog({
+        actorSub: actor.sub,
+        actorEmail: actor.email,
+        actorRole: actor.role as any,
+        action: "avatar.updated",
+        resourceType: "user",
+        resourceId: userId,
+        ipAddress: ipAddress || "",
+        userAgent: userAgent || "",
+        details: { originalName: storedOriginalName, avatarVersion },
+      });
+    }
+  });
+};
+
+const compensateUploadedVariants = async (uploaded: UploadedVariant[]): Promise<void> => {
+  await Promise.allSettled(
+    uploaded.map((item) => ociStorage.deleteObject(env.OCI_BUCKET_AVATARS_PUBLIC, item.key))
+  );
+};
+
 export const avatarService = {
   uploadAvatar: async (userId: string, options: UploadAvatarOptions) => {
     const { originalName, rawBuffer, actor, ipAddress, userAgent } = options;
     const storedOriginalName = sanitizeStoredFileName(originalName);
     const detected = await detectFileType(rawBuffer);
-    if (!detected || !imageMimes.has(detected.mime)) throw new AppError(400, "Archivo de imagen invalido");
+    if (!detected || !imageMimes.has(detected.mime)) {
+      throw new AppError(400, "Archivo de imagen invalido");
+    }
 
     await assertBufferIsClean(rawBuffer);
 
-    return db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${userId} || 'avatar_upload'))`);
+    // 1. Obtener última versión en lectura rápida no bloqueante
+    const latestVersion = await db
+      .select({ latest: sql<number>`coalesce(max(${mediaAssets.avatarVersion}), 0)` })
+      .from(mediaAssets)
+      .where(and(eq(mediaAssets.userId, userId), eq(mediaAssets.kind, "avatar")));
 
-      const latestVersion = await tx
-        .select({ latest: sql<number>`coalesce(max(${mediaAssets.avatarVersion}), 0)` })
-        .from(mediaAssets)
-        .where(and(eq(mediaAssets.userId, userId), eq(mediaAssets.kind, "avatar")));
+    const avatarVersion = (latestVersion[0]?.latest ?? 0) + 1;
+    const baseId = uuidv4();
 
-      const avatarVersion = (latestVersion[0]?.latest ?? 0) + 1;
-      const baseId = uuidv4();
-      const urls: Record<string, string> = {};
+    // 2. Procesamiento Sharp concurrente en memoria (sin conexión SQL retenida)
+    const variants = await processAvatarVariants(rawBuffer, userId, avatarVersion, baseId);
 
-      for (const px of avatarSizes) {
-        const processed = await sharp(rawBuffer).resize(px, px, { fit: "cover" }).webp({ quality: 84 }).toBuffer();
-        const key = `avatars/${userId}/v${avatarVersion}/${baseId}_${px}.webp`;
-        const url = await ociStorage.uploadPublicAvatar(key, processed, "image/webp");
-        urls[String(px)] = url;
+    // 3. Subida concurrente WAN a OCI (sin conexión SQL retenida)
+    const { uploaded, urls } = await uploadVariantsToOci(variants);
 
-        await tx.insert(mediaAssets).values({
-          userId,
-          kind: "avatar",
-          avatarVersion,
-          width: px,
-          bucket: "public",
-          objectKey: key,
-          originalName: storedOriginalName,
-          mimeType: "image/webp",
-          sizeBytes: processed.length,
-        });
-      }
+    // 4. Persistencia SQL ultra-corta (< 5ms) con rollback compensatorio en fallo
+    try {
+      await recordAvatarInDatabase({
+        userId,
+        avatarVersion,
+        storedOriginalName,
+        uploaded,
+        actor,
+        ipAddress,
+        userAgent,
+      });
+    } catch (err) {
+      logger.error({ topic: "avatar", err, userId }, "Fallo persistencia avatar SQL; purgando OCI");
+      await compensateUploadedVariants(uploaded);
+      throw err;
+    }
 
+    // 5. Limpieza post-commit de versiones antiguas fuera de la transacción
+    try {
       await cleanupOldAvatarVersions(userId, avatarVersion);
+    } catch (cleanupErr) {
+      logger.warn({ topic: "avatar", err: cleanupErr, userId }, "Limpieza asíncrona de avatares antiguos falló");
+    }
 
-      if (actor) {
-        const { createAuditRepository } = await import("./repository/audit.repository");
-        await createAuditRepository(tx).createAuditLog({
-          actorSub: actor.sub,
-          actorEmail: actor.email,
-          actorRole: actor.role as any,
-          action: "avatar.updated",
-          resourceType: "user",
-          resourceId: userId,
-          ipAddress: ipAddress || "",
-          userAgent: userAgent || "",
-          details: { originalName: storedOriginalName, avatarVersion },
-        });
-      }
-
-      return { version: avatarVersion, urls };
-    });
+    return { version: avatarVersion, urls };
   },
 
   getCurrentAvatar: async (userId: string) => {
