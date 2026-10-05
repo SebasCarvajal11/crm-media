@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { Worker } from "bullmq";
 import Redis from "ioredis";
 import { env } from "../config/env";
@@ -95,6 +97,10 @@ function initEmailWorker(): void {
     maxRetriesPerRequest: null,
   });
 
+  connection.on?.("error", (err) => {
+    logger.error({ err, topic: "worker:email" }, "Redis connection error");
+  });
+
   const worker = new Worker(EMAIL_QUEUE_NAME, processEmailJob, {
     connection: connection as any,
     prefix: env.EMAIL_QUEUE_PREFIX,
@@ -120,9 +126,12 @@ function initEmailWorker(): void {
 }
 
 export async function startMediaWorker(): Promise<void> {
-  if (process.env.REDIS_URL) {
-    initRedis(process.env.REDIS_URL);
+  state.isShuttingDown = false;
+  if (!env.REDIS_URL) {
+    throw new Error("REDIS_URL es requerida para el media worker consolidado");
   }
+
+  initRedis(env.REDIS_URL);
 
   await startMediaCommandWorker();
   await startIdentityEventConsumer();
@@ -154,6 +163,11 @@ export async function stopMediaWorker(): Promise<void> {
   if (state.streamDepthTimer) clearInterval(state.streamDepthTimer);
   if (state.quarantineTimer) clearInterval(state.quarantineTimer);
 
+  const deadline = Date.now() + 5000;
+  while (state.isQuarantineTicking && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
   if (state.healthcheck) {
     state.healthcheck.stop();
   }
@@ -176,10 +190,10 @@ export async function stopMediaWorker(): Promise<void> {
   logger.info({ topic: "worker:media" }, "Media worker consolidado detenido");
 }
 
-const isDirectRun =
+const isDirectRun = Boolean(
   process.argv[1] &&
-  (import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/")) ||
-    process.argv[1].includes("media.worker"));
+    fileURLToPath(import.meta.url) === path.resolve(process.argv[1]),
+);
 
 if (isDirectRun) {
   const shutdown = async () => {

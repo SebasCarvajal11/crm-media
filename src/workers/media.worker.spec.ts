@@ -77,6 +77,7 @@ vi.mock("bullmq", () => ({
 vi.mock("ioredis", () => {
   return {
     default: class MockRedis {
+      on = vi.fn();
       quit = mocks.bullRedisQuit;
     },
   };
@@ -125,5 +126,12 @@ describe("media.worker", () => {
     expect(mocks.bullRedisQuit).toHaveBeenCalled();
     expect(mocks.closeRedisConnections).toHaveBeenCalled();
     expect(mocks.poolEnd).toHaveBeenCalled();
+  });
+
+  it("tolera errores en ciclo de cuarentena sin abortar el worker", async () => {
+    mocks.runQuarantineScan.mockRejectedValueOnce(new Error("ClamAV unreachable"));
+
+    await expect(startMediaWorker()).resolves.not.toThrow();
+    await stopMediaWorker();
   });
 });
