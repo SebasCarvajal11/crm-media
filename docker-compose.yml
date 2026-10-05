@@ -33,8 +33,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      clamav-scanner:
-        condition: service_healthy
     volumes:
       - type: bind
         source: ${OCI_CONFIG_HOST_DIR:?OCI_CONFIG_HOST_DIR is required}
@@ -83,5 +81,3 @@ services:
         read_only: true
     networks:
       - shared_backplane
-
-

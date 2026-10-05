@@ -48,7 +48,9 @@ export async function runQuarantineScan(): Promise<{ scanned: number; moved: num
 
       try {
         const buffer = await ociStorage.getObjectBuffer(bucket, quarantineKey);
-        const isClean = await scanBufferForVirus(buffer);
+        const meta = await ociStorage.getObjectMetadata(bucket, quarantineKey);
+        const mimeType = meta?.mimeType ?? "application/octet-stream";
+        const isClean = await scanBufferForVirus(buffer, { fileName: quarantineKey, mimeType });
         if (!isClean) {
           await ociStorage.deleteObject(bucket, quarantineKey);
           infected += 1;
@@ -56,8 +58,6 @@ export async function runQuarantineScan(): Promise<{ scanned: number; moved: num
           continue;
         }
         const objectKey = quarantineKey.slice("quarantine/".length);
-        const meta = await ociStorage.getObjectMetadata(bucket, quarantineKey);
-        const mimeType = meta?.mimeType ?? "application/octet-stream";
         await ociStorage.uploadPrivateDocument(objectKey, buffer, mimeType);
         await ociStorage.deleteObject(bucket, quarantineKey);
         moved += 1;

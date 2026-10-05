@@ -5,7 +5,6 @@ import { db } from "../../db/connection";
 import { mediaAssets } from "../../db/schema";
 import { AppError } from "../../shared/middlewares/error-handler.middleware";
 import { detectFileType, imageMimes } from "../../shared/security/file-validation";
-import { scanBufferForVirus } from "../../shared/security/clamav";
 import { ociStorage } from "../../shared/storage/oci-storage";
 import { sanitizeStoredFileName } from "../../shared/sanitize-filename";
 import { getLogger } from "../../shared/logger";
@@ -19,13 +18,6 @@ const extractVersionFromAvatarKey = (key: string) => {
   const match = key.match(/\/v(\d+)\//);
   if (!match) return null;
   return Number.parseInt(match[1], 10);
-};
-
-const assertBufferIsClean = async (buffer: Buffer) => {
-  const isClean = await scanBufferForVirus(buffer);
-  if (!isClean) {
-    throw new AppError(400, "El archivo fue rechazado por el escaneo antivirus");
-  }
 };
 
 const cleanupOldAvatarVersions = async (userId: string, currentVersion: number) => {
@@ -162,8 +154,6 @@ export const avatarService = {
       throw new AppError(400, "Archivo de imagen invalido");
     }
 
-    await assertBufferIsClean(rawBuffer);
-
     // 1. Obtener última versión en lectura rápida no bloqueante
     const latestVersion = await db
       .select({ latest: sql<number>`coalesce(max(${mediaAssets.avatarVersion}), 0)` })
@@ -213,8 +203,6 @@ export const avatarService = {
       .where(and(eq(mediaAssets.userId, userId), eq(mediaAssets.kind, "avatar")));
 
     const version = latestVersion[0]?.latest ?? 0;
-    // No tener avatar es un estado normal del perfil, no un recurso inexistente
-    // excepcional. Una respuesta vacía evita que los clientes lo traten como error.
     if (version <= 0) return { version: 0, urls: {} };
 
     const rows = await db

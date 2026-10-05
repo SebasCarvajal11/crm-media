@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../../shared/storage/oci-storage", () => ({
   ociStorage: {
@@ -10,11 +10,23 @@ vi.mock("../../shared/storage/oci-storage", () => ({
   },
 }));
 
-import { assertCollabObjectKey } from "./collab-document.service";
+const mockTriggerWarmup = vi.fn();
+vi.mock("../../shared/security/clamav-standby.controller", () => ({
+  clamavStandbyController: {
+    triggerWarmup: (...args: any[]) => mockTriggerWarmup(...args),
+    registerScannerReset: vi.fn(),
+  },
+}));
+
+import { assertCollabObjectKey, collabDocumentService } from "./collab-document.service";
 import { documentService } from "./document.service";
 import { AppError } from "../../shared/middlewares/error-handler.middleware";
 
-describe("collabDocumentService", () => {
+describe("collabDocumentService & documentService", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("allows object keys starting with projects/", () => {
     expect(() => assertCollabObjectKey("projects/proj-123/task-456/file.pdf")).not.toThrow();
   });
@@ -50,7 +62,7 @@ describe("collabDocumentService", () => {
     ).rejects.toThrow("Tipo de archivo bloqueado por seguridad");
   });
 
-  it("generates upload URL for valid document", async () => {
+  it("generates upload URL for valid document and triggers anticipated ClamAV warmup", async () => {
     const res = await documentService.generateDocumentUploadUrl(
       "user-1",
       "valid.pdf",
@@ -59,5 +71,17 @@ describe("collabDocumentService", () => {
     );
     expect(res.uploadUrl).toBe("https://objectstorage.test/upload-url");
     expect(res.objectKey).toContain("documents/user-1/");
+    expect(mockTriggerWarmup).toHaveBeenCalledWith("personal_upload_url");
+  });
+
+  it("triggers anticipated ClamAV warmup on collab document upload URL generation", async () => {
+    const res = await collabDocumentService.generateDocumentUploadUrlForCollabCommand(
+      "projects/proj-1/brief.pdf",
+      "brief.pdf",
+      "application/pdf",
+      2048,
+    );
+    expect(res.uploadUrl).toBe("https://objectstorage.test/upload-url");
+    expect(mockTriggerWarmup).toHaveBeenCalledWith("collab_upload_url");
   });
 });

@@ -8,6 +8,7 @@ import { ociStorage } from "../../shared/storage/oci-storage";
 import { sanitizeStoredFileName } from "../../shared/sanitize-filename";
 import { env } from "../../config/env";
 import { scanBufferForVirus } from "../../shared/security/clamav";
+import { clamavStandbyController } from "../../shared/security/clamav-standby.controller";
 
 const logger = getLogger();
 
@@ -19,13 +20,13 @@ export const tryPromoteFromQuarantine = async (objectKey: string): Promise<boole
   }
   try {
     const buffer = await ociStorage.getObjectBuffer(bucket, quarantineKey);
-    const isClean = await scanBufferForVirus(buffer);
+    const meta = await ociStorage.getObjectMetadata(bucket, quarantineKey);
+    const mimeType = meta?.mimeType ?? "application/octet-stream";
+    const isClean = await scanBufferForVirus(buffer, { fileName: objectKey, mimeType });
     if (!isClean) {
       await ociStorage.deleteObject(bucket, quarantineKey);
       throw new AppError(400, "El archivo fue rechazado por la validación antivirus.");
     }
-    const meta = await ociStorage.getObjectMetadata(bucket, quarantineKey);
-    const mimeType = meta?.mimeType ?? "application/octet-stream";
     await ociStorage.uploadPrivateDocument(objectKey, buffer, mimeType);
     await ociStorage.deleteObject(bucket, quarantineKey);
     return true;
@@ -64,6 +65,7 @@ export const collabDocumentService = {
     if (sizeBytes > MAX_BYTES) throw new AppError(413, "Archivo excede 25MB");
 
     const quarantineKey = `quarantine/${objectKey}`;
+    clamavStandbyController.triggerWarmup("collab_upload_url");
     const uploadUrl = await ociStorage.createUploadPar(
       env.OCI_BUCKET_DOCS_PRIVATE,
       quarantineKey,

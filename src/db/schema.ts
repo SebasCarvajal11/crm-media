@@ -39,3 +39,14 @@ export const auditLogs = mediaSchema.table(
   },
   (t) => [primaryKey({ columns: [t.id, t.createdAt] })]
 );
+
+export const fileReputation = mediaSchema.table("file_reputation", {
+  sha256: varchar("sha256", { length: 64 }).primaryKey(),
+  status: varchar("status", { length: 20 }).notNull(),
+  virusName: text("virus_name"),
+  sizeBytes: bigint("size_bytes", { mode: "number" }),
+  mimeType: text("mime_type"),
+  scannedBy: varchar("scanned_by", { length: 50 }).notNull().default("clamav"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});

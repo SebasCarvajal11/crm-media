@@ -1,31 +1,57 @@
 import { createConnection } from "net";
 import type { HealthDependency } from "./health";
 
-export async function checkClamav(host: string, port: number): Promise<HealthDependency> {
+export async function checkClamav(
+  host: string,
+  port: number,
+  timeoutMs = 2000
+): Promise<HealthDependency> {
   const start = Date.now();
   return new Promise((resolve) => {
-    const socket = createConnection({ host, port, timeout: 5000 }, () => {
+    let resolved = false;
+
+    const safeResolve = (dep: HealthDependency) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(dep);
+    };
+
+    const socket = createConnection({ host, port, timeout: timeoutMs }, () => {
       socket.write("PING\n");
     });
 
     socket.on("data", (data) => {
       socket.destroy();
       if (data.toString().includes("PONG")) {
-        resolve({ status: "ok", latencyMs: Date.now() - start });
+        safeResolve({ status: "ok", latencyMs: Date.now() - start, critical: false });
       } else {
-        resolve({ status: "down", latencyMs: Date.now() - start, error: `Unexpected: ${data}` });
+        safeResolve({
+          status: "standby",
+          latencyMs: Date.now() - start,
+          critical: false,
+          error: `Unexpected: ${data}`,
+        });
       }
     });
 
     socket.on("error", (error) => {
       socket.destroy();
-      resolve({ status: "down", latencyMs: Date.now() - start, error: error.message });
+      safeResolve({
+        status: "standby",
+        latencyMs: Date.now() - start,
+        critical: false,
+        error: error.message,
+      });
     });
 
     socket.on("timeout", () => {
       socket.destroy();
-      resolve({ status: "timeout", latencyMs: Date.now() - start, error: "Connection timeout" });
+      safeResolve({
+        status: "timeout",
+        latencyMs: Date.now() - start,
+        critical: false,
+        error: "Connection timeout",
+      });
     });
   });
 }
-

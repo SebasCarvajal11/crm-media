@@ -9,6 +9,7 @@ import { sanitizeFileNameForObjectKey, sanitizeStoredFileName } from "../../shar
 import { env } from "../../config/env";
 import { v4 as uuidv4 } from "uuid";
 import { collabDocumentService, tryPromoteFromQuarantine } from "./collab-document.service";
+import { clamavStandbyController } from "../../shared/security/clamav-standby.controller";
 
 const logger = getLogger();
 
@@ -48,6 +49,7 @@ export const documentService = {
     const safeFileName = sanitizeFileNameForObjectKey(storedFileName);
     const objectKey = `documents/${userId}/${uuidv4()}-${safeFileName}`;
     const quarantineKey = `quarantine/${objectKey}`;
+    clamavStandbyController.triggerWarmup("personal_upload_url");
     const uploadUrl = await ociStorage.createUploadPar(
       env.OCI_BUCKET_DOCS_PRIVATE,
       quarantineKey,
