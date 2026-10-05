@@ -1,9 +1,21 @@
-import { createPublicKey, createVerify } from "node:crypto";
+import { createPublicKey, verify as cryptoVerify, type KeyObject } from "node:crypto";
+import { promisify } from "node:util";
 import { env } from "../config/env";
 import { collabJwksClient } from "../config/jwks-client";
 import { AppError } from "../shared/middlewares/error-handler.middleware";
 import type { MediaCommand } from "@sebascarvajal11/cima-contracts/media-asset-events";
 import { NonRetryableStreamError } from "@sebascarvajal11/cima-contracts/event-consumer";
+
+const asyncVerify = promisify(cryptoVerify);
+const publicKeyCache = new Map<string, KeyObject>();
+
+const getOrCreatePublicKey = (pem: string): KeyObject => {
+  const cached = publicKeyCache.get(pem);
+  if (cached) return cached;
+  const key = createPublicKey(pem);
+  publicKeyCache.set(pem, key);
+  return key;
+};
 
 export async function verifyMediaCommandSignature(command: MediaCommand): Promise<void> {
   const token = command.signature;
@@ -63,10 +75,11 @@ export async function verifyMediaCommandSignature(command: MediaCommand): Promis
     throw new NonRetryableStreamError("objectKey no coincide con el comando", "invalid_signature");
   }
 
-  const key = createPublicKey(publicKeyPem);
-  const verifier = createVerify("RSA-SHA256");
-  verifier.update(`${headerB64}.${payloadB64}`);
-  if (!verifier.verify(key, Buffer.from(signatureB64, "base64url"))) {
+  const key = getOrCreatePublicKey(publicKeyPem);
+  const data = Buffer.from(`${headerB64}.${payloadB64}`);
+  const signature = Buffer.from(signatureB64, "base64url");
+  const isValid = await asyncVerify("sha256", data, key, signature);
+  if (!isValid) {
     throw new NonRetryableStreamError("Firma de JWT de servicio inválida", "invalid_signature");
   }
 }
