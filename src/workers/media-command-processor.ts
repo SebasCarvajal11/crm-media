@@ -23,7 +23,15 @@ export async function publishResponse(response: Record<string, unknown>): Promis
     logger.error({ topic: "media-command-processor" }, "Redis no disponible para publicar respuesta");
     return;
   }
-  await redis.xadd(env.MEDIA_RESPONSES_STREAM_KEY, "*", "payload", JSON.stringify(response));
+  await redis.xadd(
+    env.MEDIA_RESPONSES_STREAM_KEY,
+    "MAXLEN",
+    "~",
+    env.MEDIA_RESPONSES_STREAM_MAXLEN,
+    "*",
+    "payload",
+    JSON.stringify(response)
+  );
 
   const responseType = String(response.type || "unknown");
   const responseVersion = Number(response.version ?? 1);

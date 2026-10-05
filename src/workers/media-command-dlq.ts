@@ -65,7 +65,14 @@ export async function appendMediaCommandToDlq(
     fields.push("payload", record.payload);
   }
 
-  const dlqId = await redis.xadd(env.MEDIA_COMMANDS_DLQ_STREAM_KEY, "*", ...fields);
+  const dlqId = await redis.xadd(
+    env.MEDIA_COMMANDS_DLQ_STREAM_KEY,
+    "MAXLEN",
+    "~",
+    env.MEDIA_COMMANDS_DLQ_MAXLEN,
+    "*",
+    ...fields
+  );
   if (!dlqId) {
     throw new Error("Redis no devolvio id al escribir la entrada DLQ de media");
   }
@@ -105,6 +112,9 @@ export async function replayMediaCommandDlqEntry(
 
   const replayedMessageId = await redis.xadd(
     entry.sourceStream || env.MEDIA_COMMANDS_STREAM_KEY,
+    "MAXLEN",
+    "~",
+    env.MEDIA_COMMANDS_STREAM_MAXLEN,
     "*",
     "payload",
     entry.payload,
