@@ -153,7 +153,9 @@ if (isEntrypoint) {
   if (process.env.REDIS_URL) initRedis(process.env.REDIS_URL);
   await startMediaCommandWorker();
   await startIdentityEventConsumer();
-  startMediaDlqReplayer();
+  if (env.DLQ_AUTO_REPLAY_INTERVAL_MS > 0) {
+    startMediaDlqReplayer();
+  }
 
   const healthcheck = startWorkerHealthcheck("media-command-worker", {
     pool,

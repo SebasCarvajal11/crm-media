@@ -12,6 +12,8 @@
     "oci:verify": "tsx src/scripts/verify-oci.ts",
     "pii:clean": "tsx src/scripts/pii-clean.ts",
     "worker:media-commands": "tsx src/workers/media-command.worker.ts",
+    "dlq:media:list": "tsx src/scripts/media-commands-dlq.ts list",
+    "dlq:media:replay": "tsx src/scripts/media-commands-dlq.ts replay",
     "worker:quarantine-scan": "tsx src/workers/quarantine-scan.worker.ts",
     "worker:email": "tsx src/workers/email.worker.ts",
     "db:bootstrap": "tsx src/scripts/bootstrap.ts",

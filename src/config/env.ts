@@ -51,7 +51,7 @@ const envSchema = z.object({
   AUDIT_EVENTS_STREAM_MAXLEN: z.coerce.number().int().optional(),
   MEDIA_COMMANDS_MAX_RETRIES: z.coerce.number().int().min(1).max(20).default(3),
   MEDIA_COMMANDS_PENDING_IDLE_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(5_000),
-  DLQ_AUTO_REPLAY_INTERVAL_MS: z.coerce.number().int().nonnegative().default(60000),
+  DLQ_AUTO_REPLAY_INTERVAL_MS: z.coerce.number().int().nonnegative().default(0),
   RATE_LIMIT_MEDIA_AVATAR_MAX: z.coerce.number().int().positive().default(10),
   RATE_LIMIT_MEDIA_AVATAR_WINDOW_MS: z.coerce.number().int().positive().default(60 * 60 * 1000),
   RATE_LIMIT_MEDIA_DOC_UPLOAD_MAX: z.coerce.number().int().positive().default(40),
