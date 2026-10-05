@@ -45,7 +45,7 @@ services:
         aliases:
           - media
 
-  crm-media-command-worker:
+  crm-media-worker:
     build:
       context: .
       dockerfile: Dockerfile
@@ -54,7 +54,7 @@ services:
         PNPM_VERSION: ${PNPM_VERSION:-11.1.1}
     init: true
     restart: unless-stopped
-    command: ["pnpm", "worker:media-commands"]
+    command: ["pnpm", "worker:media"]
     env_file:
       - .env
     environment:
@@ -84,62 +84,4 @@ services:
     networks:
       - shared_backplane
 
-  crm-media-quarantine-scan-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
-        PNPM_VERSION: ${PNPM_VERSION:-11.1.1}
-    init: true
-    restart: unless-stopped
-    command: ["pnpm", "worker:quarantine-scan"]
-    env_file:
-      - .env
-    environment:
-      CONTAINER_MODE: worker
-      DATABASE_URL: postgresql://media_user:${MEDIA_DB_PASSWORD:-mediapassword}@postgres_db:5432/crm_database
-      DB_SCHEMA: schema_media
-      REDIS_URL: redis://redis:6379
-      CLAMAV_HOST: clamav-scanner
-      CLAMAV_PORT: 3310
-      OCI_CONFIG_SOURCE_FILE: /opt/cima/secrets/oci/oci.config
-      OCI_CONFIG_FILE_PATH: /tmp/cima-oci/oci.config
-    depends_on:
-      crm-media:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ${OCI_CONFIG_HOST_DIR:?OCI_CONFIG_HOST_DIR is required}
-        target: ${OCI_CONFIG_CONTAINER_DIR:?OCI_CONFIG_CONTAINER_DIR is required}
-        read_only: true
-    networks:
-      - shared_backplane
 
-  crm-media-email-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
-        PNPM_VERSION: ${PNPM_VERSION:-11.1.1}
-    init: true
-    restart: unless-stopped
-    command: ["pnpm", "worker:email"]
-    env_file:
-      - .env
-    environment:
-      CONTAINER_MODE: worker
-      DATABASE_URL: postgresql://media_user:${MEDIA_DB_PASSWORD:-mediapassword}@postgres_db:5432/crm_database
-      DB_SCHEMA: schema_media
-      REDIS_URL: redis://redis:6379
-    depends_on:
-      crm-media:
-        condition: service_healthy
-    volumes:
-      - type: bind
-        source: ${OCI_CONFIG_HOST_DIR:?OCI_CONFIG_HOST_DIR is required}
-        target: ${OCI_CONFIG_CONTAINER_DIR:?OCI_CONFIG_CONTAINER_DIR is required}
-        read_only: true
-    networks:
-      - shared_backplane

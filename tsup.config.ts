@@ -3,6 +3,7 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: {
     server: "src/server.ts",
+    "workers/media.worker": "src/workers/media.worker.ts",
     "workers/media-command.worker": "src/workers/media-command.worker.ts",
     "workers/quarantine-scan.worker": "src/workers/quarantine-scan.worker.ts",
     "workers/email.worker": "src/workers/email.worker.ts",
