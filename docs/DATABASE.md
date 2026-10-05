@@ -34,12 +34,15 @@ Este documento detalla el esquema relacional en PostgreSQL, los modelos Drizzle 
 Custodia los metadatos de los archivos físicos almacenados en Oracle Cloud Infrastructure (OCI). Los binarios reales residen en los buckets de OCI, nunca en la base de datos relacional.
 
 - **Identificador**: UUID versión 7 (`$defaultFn(() => uuidv7())`), ordenable cronológicamente para evitar fragmentación de índices B-Tree.
-- **Índice de Unicidad**:
+- **Índices de Unicidad y Acceso Rápido**:
   ```sql
   CREATE UNIQUE INDEX uq_user_kind_version_width 
   ON schema_media.media_assets (user_id, kind, avatar_version, width);
+
+  CREATE UNIQUE INDEX uq_media_assets_object_key
+  ON schema_media.media_assets (object_key);
   ```
-  Asegura que no existan duplicados para la misma versión y dimensión de avatar de un usuario.
+  Asegura que no existan duplicados para la misma versión y dimensión de avatar de un usuario, y garantiza búsquedas $O(1)$ por `object_key` para verificación y descarga de documentos sin escaneo secuencial.
 
 ### B. Tabla Particionada `audit_logs`
 Registra eventos críticos de seguridad y acceso a archivos (subida de avatar, confirmación de documento, eliminación, acceso a datos sensibles).

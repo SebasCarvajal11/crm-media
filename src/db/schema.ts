@@ -17,7 +17,8 @@ export const mediaAssets = mediaSchema.table("media_assets", {
   sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
-  uniqueIndex("uq_user_kind_version_width").on(t.userId, t.kind, t.avatarVersion, t.width)
+  uniqueIndex("uq_user_kind_version_width").on(t.userId, t.kind, t.avatarVersion, t.width),
+  uniqueIndex("uq_media_assets_object_key").on(t.objectKey),
 ]);
 
 export const auditLogs = mediaSchema.table(

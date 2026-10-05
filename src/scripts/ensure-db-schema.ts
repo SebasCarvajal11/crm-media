@@ -60,6 +60,10 @@ try {
     ON "${dbSchema}"."media_assets" ("user_id", "kind", "avatar_version", "width");
   `);
   await client.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "uq_media_assets_object_key"
+    ON "${dbSchema}"."media_assets" ("object_key");
+  `);
+  await client.query(`
     CREATE TABLE IF NOT EXISTS "${dbSchema}"."audit_logs" (
       "id" bigserial NOT NULL,
       "actor_sub" uuid,
