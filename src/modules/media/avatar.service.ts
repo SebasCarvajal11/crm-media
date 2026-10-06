@@ -11,14 +11,15 @@ export interface AvatarDto {
 }
 
 export const avatarService = {
-  getCurrentAvatar: async (userId: string): Promise<AvatarDto> => {
+  getCurrentAvatar: async (userId: string, fallbackId?: string): Promise<AvatarDto> => {
+    const ids = Array.from(new Set([userId, fallbackId].filter(Boolean) as string[]));
     const rows = await db
       .select({
         avatarId: userAvatars.avatarId,
         color: userAvatars.color,
       })
       .from(userAvatars)
-      .where(eq(userAvatars.userId, userId));
+      .where(inArray(userAvatars.userId, ids));
 
     const row = rows[0];
     if (!row) {

@@ -28,7 +28,8 @@ export const mediaController = {
       throw new AppError(400, `Parámetros de avatar preset inválidos: ${issue}`);
     }
     const { ipAddress, userAgent } = getContextFromRequest(request);
-    const data = await avatarPresetService.saveAvatarPreset(user.userId, {
+    const primaryId = user.sub || user.userId;
+    const data = await avatarPresetService.saveAvatarPreset(primaryId, {
       avatarId: parseResult.data.avatarId,
       color: parseResult.data.color,
       actor: user,
@@ -115,8 +116,8 @@ export const mediaController = {
     const data = await documentService.deleteDocument(user, objectKey, { ipAddress, userAgent });
     return { data };
   },
-  getCurrentAvatar: async (userId: string) => {
-    const data = await avatarService.getCurrentAvatar(userId);
+  getCurrentAvatar: async (userId: string, fallbackId?: string) => {
+    const data = await avatarService.getCurrentAvatar(userId, fallbackId);
     return { data };
   },
   getCurrentAvatarsByUsers: async (userIds: string[]) => {

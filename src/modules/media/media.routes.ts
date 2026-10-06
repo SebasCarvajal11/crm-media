@@ -31,8 +31,8 @@ mediaRoutes.post("/avatars", async (c) => {
 });
 
 mediaRoutes.get("/avatars/current", async (c) => {
-  const { userId } = c.get("user");
-  const payload = await mediaController.getCurrentAvatar(userId);
+  const { userId, sub } = c.get("user");
+  const payload = await mediaController.getCurrentAvatar(sub || userId, userId);
   return c.json(payload);
 });
 

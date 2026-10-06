@@ -38,31 +38,37 @@ export const avatarPresetService = {
       throw new AppError(400, "Color debe ser un código hexadecimal válido (ej: #86070c)");
     }
 
-    await db
-      .insert(userAvatars)
-      .values({
-        userId,
-        avatarId,
-        color,
-        updatedAt: new Date(),
-        createdAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: userAvatars.userId,
-        set: {
+    const targetIds = Array.from(
+      new Set([userId, actor?.sub, actor?.userId].filter(Boolean) as string[])
+    );
+
+    for (const id of targetIds) {
+      await db
+        .insert(userAvatars)
+        .values({
+          userId: id,
           avatarId,
           color,
           updatedAt: new Date(),
-        },
-      });
+          createdAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: userAvatars.userId,
+          set: {
+            avatarId,
+            color,
+            updatedAt: new Date(),
+          },
+        });
 
-    // Purgar residuos de media_assets si existían avatares previos en OCI/DB
-    await db
-      .delete(mediaAssets)
-      .where(and(eq(mediaAssets.userId, userId), eq(mediaAssets.kind, "avatar")))
-      .catch((err) => {
-        logger.warn({ topic: "avatar", err, userId }, "No se pudo purgar media_assets residual de avatar");
-      });
+      // Purgar residuos de media_assets si existían avatares previos en OCI/DB
+      await db
+        .delete(mediaAssets)
+        .where(and(eq(mediaAssets.userId, id), eq(mediaAssets.kind, "avatar")))
+        .catch((err) => {
+          logger.warn({ topic: "avatar", err, userId: id }, "No se pudo purgar media_assets residual de avatar");
+        });
+    }
 
     if (actor) {
       await db

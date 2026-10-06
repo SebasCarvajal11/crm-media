@@ -30,6 +30,7 @@ export const CIMA_CORPORATE_PALETTE = [
 
 export interface UserRecord extends Record<string, unknown> {
   id: string;
+  subject?: string;
   email: string;
   first_name: string | null;
   last_name: string | null;
@@ -62,7 +63,7 @@ export function generateMigrationPlan(users: UserRecord[]): MigrationPlanItem[] 
   return users.map((user, index) => {
     const { avatarId, color } = getDeterministicAvatarAssignment(index);
     return {
-      userId: user.id,
+      userId: (user.subject || user.id) as string,
       email: user.email,
       avatarId,
       color,
@@ -89,11 +90,11 @@ export async function purgeResidualMediaAvatars(): Promise<number> {
 
 async function fetchPendingUsers(): Promise<UserRecord[]> {
   const queryResult = await db.execute<UserRecord>(sql`
-    SELECT u.id, u.email, u.first_name, u.last_name
+    SELECT u.id, u.subject, u.email, u.first_name, u.last_name
     FROM schema_auth.users u
     WHERE NOT EXISTS (
       SELECT 1 FROM schema_media.user_avatars a
-      WHERE a.user_id = u.id::text
+      WHERE a.user_id = u.subject::text
     )
     ORDER BY u.created_at ASC
   `);
