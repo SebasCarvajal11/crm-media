@@ -3,6 +3,8 @@ import { AppError } from "../../shared/middlewares/error-handler.middleware";
 import { userRateLimit } from "../../shared/middlewares/rate-limit.middleware";
 import { authMiddleware, requireRole, AppEnv } from "../../shared/middlewares/auth.middleware";
 import { mediaController } from "./media.controller";
+import { buildAvatarUrls } from "./avatar-preset.service";
+import { resolveDeterministicAvatar } from "@sebascarvajal11/cima-contracts";
 import { env } from "../../config/env";
 
 const MAX_AVATAR_LOOKUP_IDS = 100;
@@ -12,7 +14,7 @@ export const mediaRoutes = new Hono<AppEnv>();
 
 mediaRoutes.use("*", authMiddleware);
 
-// ─── Avatares (catálogo predeterminado y deprecación de subida libre) ───────
+// ─── Avatares (catálogo predeterminado con color corporativo) ────────────────
 mediaRoutes.post(
   "/avatars/preset",
   userRateLimit({ maxAttempts: env.RATE_LIMIT_MEDIA_AVATAR_MAX, windowMs: env.RATE_LIMIT_MEDIA_AVATAR_WINDOW_MS }),
@@ -24,12 +26,6 @@ mediaRoutes.post(
   },
 );
 
-mediaRoutes.post("/avatars", async (c) => {
-  const user = c.get("user");
-  const payload = await mediaController.uploadAvatar(c.req.raw, user);
-  return c.json(payload, 410);
-});
-
 mediaRoutes.get("/avatars/current", async (c) => {
   const { userId, sub } = c.get("user");
   const payload = await mediaController.getCurrentAvatar(sub || userId, userId);
@@ -37,19 +33,40 @@ mediaRoutes.get("/avatars/current", async (c) => {
 });
 
 mediaRoutes.get("/avatars/users", async (c) => {
-  const idsRaw = c.req.query("ids") ?? "";
-  const ids = idsRaw
-    .split(",")
+  const queryList = c.req.queries("ids") ?? [];
+  const singleQuery = c.req.query("ids");
+  const rawList = queryList.length > 0 ? queryList : (singleQuery ? [singleQuery] : []);
+  const tokens = rawList
+    .flatMap((item) => item.split(","))
     .map((id) => id.trim())
-    .filter(Boolean);
-  if (ids.length > MAX_AVATAR_LOOKUP_IDS) {
+    .filter((id) => id.length > 0 && id !== "null" && id !== "undefined");
+
+  const uniqueTokens = Array.from(new Set(tokens));
+  if (uniqueTokens.length > MAX_AVATAR_LOOKUP_IDS) {
     throw new AppError(400, `Se permiten máximo ${MAX_AVATAR_LOOKUP_IDS} usuarios por consulta`);
   }
-  if (ids.some((id) => !UUID_PATTERN.test(id))) {
-    throw new AppError(400, "ids debe contener UUIDs válidos");
+
+  if (uniqueTokens.length === 0) {
+    return c.json({ data: { items: {} } });
   }
-  const payload = await mediaController.getCurrentAvatarsByUsers(ids);
-  return c.json(payload);
+
+  const validUuids = uniqueTokens.filter((id) => UUID_PATTERN.test(id));
+  const nonUuids = uniqueTokens.filter((id) => !UUID_PATTERN.test(id));
+
+  const { data } = await mediaController.getCurrentAvatarsByUsers(validUuids);
+  const items = data.items;
+
+  for (const token of nonUuids) {
+    const fallback = resolveDeterministicAvatar(token);
+    items[token] = {
+      version: 1,
+      avatarId: fallback.avatarId,
+      color: fallback.color,
+      urls: buildAvatarUrls(fallback.avatarId, fallback.color),
+    };
+  }
+
+  return c.json({ data: { items } });
 });
 
 // ─── Documentos: flujo Pre-Signed URL ─────────────────────────────────────

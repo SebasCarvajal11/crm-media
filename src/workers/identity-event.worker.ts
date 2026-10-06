@@ -3,7 +3,9 @@ import { createRedisStreamConsumerConnection, getRedisConnection } from "../shar
 import { env } from "../config/env";
 import { getLogger, traceStorage } from "../shared/logger";
 import { documentService } from "../modules/media/document.service";
-import { STREAM_CONVENTIONS } from "@sebascarvajal11/cima-contracts";
+import { db } from "../db/connection";
+import { userAvatars } from "../db/schema";
+import { STREAM_CONVENTIONS, resolveDeterministicAvatar } from "@sebascarvajal11/cima-contracts";
 import {
   authIdentityEventV1Schema,
   authIdentityEventV2Schema,
@@ -68,11 +70,40 @@ export async function stopIdentityEventConsumer(): Promise<void> {
   consumerRedis = undefined;
 }
 
-async function handleIdentityEvent(event: AuthIdentityEvent): Promise<void> {
-  if (event.type !== "user.deleted") {
-    return;
+async function handleUserRegistered(event: AuthIdentityEvent): Promise<void> {
+  const userSub = event.userSub;
+  if (!userSub) {
+    throw new NonRetryableStreamError(
+      "Evento user.registered sin userSub",
+      "invalid_schema",
+    );
   }
 
+  const fallback = resolveDeterministicAvatar(userSub);
+  await db
+    .insert(userAvatars)
+    .values({
+      userId: userSub,
+      avatarId: fallback.avatarId,
+      color: fallback.color,
+      updatedAt: new Date(),
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing();
+
+  const conn = getRedisConnection();
+  if (conn) {
+    await conn
+      .hincrby("metrics:events:processed", `user.registered:v${event.version ?? 1}`, 1)
+      .catch(() => undefined);
+  }
+  logger.info(
+    { eventType: "user.registered", topic: "event-metrics", userId: userSub },
+    `Avatar asignado automáticamente: user.registered v${event.version ?? 1}`,
+  );
+}
+
+async function handleUserDeleted(event: AuthIdentityEvent): Promise<void> {
   const userSub = event.userSub;
   if (!userSub) {
     throw new NonRetryableStreamError(
@@ -93,6 +124,17 @@ async function handleIdentityEvent(event: AuthIdentityEvent): Promise<void> {
     { eventType: "user.deleted", topic: "event-metrics" },
     `Métrica de evento procesado: user.deleted v${event.version ?? 1}`,
   );
+}
+
+async function handleIdentityEvent(event: AuthIdentityEvent): Promise<void> {
+  if (event.type === "user.registered") {
+    await handleUserRegistered(event);
+    return;
+  }
+  if (event.type === "user.deleted") {
+    await handleUserDeleted(event);
+    return;
+  }
 }
 
 async function handleDlq(ctx: DlqContext): Promise<void> {

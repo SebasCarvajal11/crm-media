@@ -26,13 +26,6 @@ const run = async () => {
     }
 
     try {
-      await client.headBucket({ namespaceName: namespace, bucketName: env.OCI_BUCKET_AVATARS_PUBLIC });
-      ok(`HeadBucket avatars: ${env.OCI_BUCKET_AVATARS_PUBLIC}`);
-    } catch (error) {
-      allOk = fail(`HeadBucket avatars (${env.OCI_BUCKET_AVATARS_PUBLIC})`, error) && allOk;
-    }
-
-    try {
       await client.headBucket({ namespaceName: namespace, bucketName: env.OCI_BUCKET_DOCS_PRIVATE });
       ok(`HeadBucket docs: ${env.OCI_BUCKET_DOCS_PRIVATE}`);
     } catch (error) {

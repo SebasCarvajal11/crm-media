@@ -1,5 +1,5 @@
 # ============================================================
-# 02 — Asignacion de Avatares Oficiales (Presets) y Deprecacion
+# 02 — Asignacion de Avatares Oficiales (Presets)
 # ============================================================
 # Prueba los endpoints de avatares:
 # - Admin asigna avatar oficial con color corporativo
@@ -8,7 +8,6 @@
 # - Guest NO puede asignar avatar (401)
 # - Validacion: avatarId fuera de rango (0..83) -> 400
 # - Validacion: color hexadecimal invalido -> 400
-# - Deprecacion: POST /api/v1/media/avatars retorna 410 Gone
 # ============================================================
 
 # Login
@@ -116,7 +115,3 @@ Content-Type: application/json
 }
 HTTP 400
 
-# --- Deprecacion: subida manual retorna 410 Gone ---
-POST {{base_url}}/api/v1/media/avatars
-Authorization: Bearer {{admin_token}}
-HTTP 410

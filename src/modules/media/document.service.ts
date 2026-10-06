@@ -219,11 +219,7 @@ export const documentService = {
 
     for (const asset of assets) {
       try {
-        const bucketName =
-          asset.bucket === "public"
-            ? env.OCI_BUCKET_AVATARS_PUBLIC
-            : env.OCI_BUCKET_DOCS_PRIVATE;
-        await ociStorage.deleteObject(bucketName, asset.objectKey);
+        await ociStorage.deleteObject(env.OCI_BUCKET_DOCS_PRIVATE, asset.objectKey);
       } catch (err) {
         logger.error({ err, assetId: asset.id, objectKey: asset.objectKey }, "Error deleting object from OCI during PII clean");
       }
@@ -233,7 +229,9 @@ export const documentService = {
       await db.delete(mediaAssets).where(eq(mediaAssets.userId, userSub));
     }
 
-    const { auditLogs } = await import("../../db/schema");
+    const { auditLogs, userAvatars } = await import("../../db/schema");
+    await db.delete(userAvatars).where(eq(userAvatars.userId, userSub)).catch(() => undefined);
+
     const anonEmail = `anon-${userSub}@cima.internal`;
     await db
       .update(auditLogs)

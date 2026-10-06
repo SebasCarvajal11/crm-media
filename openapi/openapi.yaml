@@ -140,29 +140,6 @@ paths:
           description: Parámetros inválidos
         "401":
           description: No autenticado
-  /api/v1/media/avatars:
-    post:
-      tags: [Avatares]
-      summary: Subir avatar del usuario actual (Deprecado)
-      deprecated: true
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file]
-              properties:
-                file:
-                  type: string
-                  format: binary
-      responses:
-        "410":
-          description: Endpoint deprecado (410 Gone) - Use el catálogo de avatares predeterminados
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   /api/v1/media/avatars/current:
     get:
       tags: [Avatares]

@@ -68,9 +68,8 @@ Este documento define la interacción de `crm-media` con los componentes del eco
 - **SDK Oficial**: `@oracle/oci-objectstorage` y `@oracle/oci-common`.
 - **Autenticación**: Basada en par de claves RSA (`OCI_PRIVATE_KEY_PATH`) vinculadas al perfil de usuario en el tenancy de OCI.
 - **Buckets Aislados**:
-  - `OCI_BUCKET_AVATARS`: Imágenes de perfil públicas optimizadas.
-  - `OCI_BUCKET_DOCUMENTS`: Documentos privados protegidos con URLs prefirmadas.
-  - `OCI_BUCKET_QUARANTINE`: Archivos sospechosos aislados durante el escaneo antivirus.
+  - `OCI_BUCKET_DOCS_PRIVATE`: Documentos privados protegidos con URLs prefirmadas (PAR).
+  - Los avatares oficiales (0..83) se distribuyen directamente desde el catálogo estático corporativo.
 
 ---
 

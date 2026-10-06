@@ -16,18 +16,21 @@ describe("avatarService - consultas de avatares desde user_avatars", () => {
   });
 
   describe("getCurrentAvatar", () => {
-    it("returns version 0 when user has no avatar", async () => {
+    it("returns deterministic fallback avatar when user has no avatar in DB (Zero-Null Guarantee)", async () => {
       mockSelect.mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockResolvedValue([]),
         }),
       });
 
-      const result = await avatarService.getCurrentAvatar("user-empty");
-      expect(result.version).toBe(0);
-      expect(result.avatarId).toBeNull();
-      expect(result.color).toBeNull();
-      expect(result.urls).toEqual({});
+      const result = await avatarService.getCurrentAvatar("00000000-0000-4000-8000-000000000001");
+      expect(result.version).toBe(1);
+      expect(typeof result.avatarId).toBe("number");
+      expect(result.avatarId).toBeGreaterThanOrEqual(0);
+      expect(result.avatarId).toBeLessThanOrEqual(83);
+      expect(typeof result.color).toBe("string");
+      expect(result.color).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(result.urls["64"]).toBeDefined();
     });
 
     it("returns active version and mapped urls when user has avatar in user_avatars", async () => {
@@ -75,6 +78,28 @@ describe("avatarService - consultas de avatares desde user_avatars", () => {
       expect(result.items["u2"].avatarId).toBe(15);
       expect(result.items["u2"].color).toBe("#1e3a8a");
       expect(result.items["u2"].urls["256"]).toBe("/avatars/avatar-15.webp?c=1e3a8a");
+    });
+
+    it("returns deterministic fallback for users not in DB or non-UUID tokens", async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([
+            { userId: "11111111-1111-4111-8111-111111111111", avatarId: 3, color: "#86070c" },
+          ]),
+        }),
+      });
+
+      const result = await avatarService.getCurrentAvatarsByUsers([
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "system-bot",
+      ]);
+      expect(result.items["11111111-1111-4111-8111-111111111111"].avatarId).toBe(3);
+      expect(result.items["22222222-2222-4222-8222-222222222222"]).toBeDefined();
+      expect(typeof result.items["22222222-2222-4222-8222-222222222222"].avatarId).toBe("number");
+      expect(result.items["system-bot"]).toBeDefined();
+      expect(typeof result.items["system-bot"].avatarId).toBe("number");
+      expect(result.items["system-bot"].urls["64"]).toBeDefined();
     });
   });
 });

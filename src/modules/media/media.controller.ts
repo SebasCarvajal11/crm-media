@@ -39,14 +39,6 @@ export const mediaController = {
     return { data };
   },
 
-  // ─── Endpoint de subida manual deprecado (410 Gone) ───
-  uploadAvatar: async (_request: Request, _user: any) => {
-    throw new AppError(
-      410,
-      "La subida manual de avatares está deprecada (410 Gone). Utilice el catálogo de avatares predeterminados con color corporativo."
-    );
-  },
-
   // ─── Documentos: flujo Pre-Signed URL ──────────────────────────────────────────
 
   /**

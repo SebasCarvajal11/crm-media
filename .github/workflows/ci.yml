@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -24,7 +24,6 @@ jobs:
       OCI_PRIVATE_KEY_PEM: ${{ secrets.OCI_PRIVATE_KEY_PEM }}
       OCI_REGION: ${{ secrets.OCI_REGION }}
       OCI_NAMESPACE: ${{ secrets.OCI_NAMESPACE }}
-      OCI_BUCKET_AVATARS_PUBLIC: ${{ secrets.OCI_BUCKET_AVATARS_PUBLIC }}
       OCI_BUCKET_DOCS_PRIVATE: ${{ secrets.OCI_BUCKET_DOCS_PRIVATE }}
 
     steps:
@@ -33,7 +32,7 @@ jobs:
         shell: bash
         run: |
           missing=0
-          for key in OCI_CONFIG_FILE_CONTENT OCI_PRIVATE_KEY_PEM OCI_REGION OCI_NAMESPACE OCI_BUCKET_AVATARS_PUBLIC OCI_BUCKET_DOCS_PRIVATE; do
+          for key in OCI_CONFIG_FILE_CONTENT OCI_PRIVATE_KEY_PEM OCI_REGION OCI_NAMESPACE OCI_BUCKET_DOCS_PRIVATE; do
             if [[ -z "${!key:-}" ]]; then
               echo "Missing secret: $key"
               missing=1
@@ -89,7 +88,6 @@ jobs:
           CLAMAV_SCAN_TIMEOUT_MS: "90000"
           DOC_PAR_TTL_SECONDS: "300"
           OCI_PAR_PRUNE_MAX: "80"
-          AVATAR_VERSIONS_TO_KEEP: "3"
           MOD_COLLAB_URL: http://127.0.0.1:3001
           JWKS_URI: http://127.0.0.1:3000/api/v1/.well-known/jwks.json
         run: pnpm oci:verify

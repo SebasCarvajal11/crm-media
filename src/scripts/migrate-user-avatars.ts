@@ -13,20 +13,12 @@ import { getLogger } from "../shared/logger";
 
 const logger = getLogger();
 
-export const CIMA_CORPORATE_PALETTE = [
-  "#86070c", // Rojo Corporativo CIMA
-  "#a8131a", // Rubí CIMA
-  "#680609", // Borgoña Oscuro
-  "#bd2f35", // Coral Intenso CIMA
-  "#1e3a8a", // Azul Marino Ejecutivo
-  "#1d4ed8", // Azul Cobalto
-  "#065f46", // Verde Bosque
-  "#047857", // Esmeralda CIMA
-  "#d97706", // Ámbar Cálido
-  "#5b21b6", // Violeta Real
-  "#475569", // Pizarra Neutro
-  "#282829", // Grafito CIMA
-] as const;
+import {
+  CIMA_CORPORATE_PALETTE,
+  OFFICIAL_AVATARS_COUNT,
+} from "@sebascarvajal11/cima-contracts";
+
+export { CIMA_CORPORATE_PALETTE, OFFICIAL_AVATARS_COUNT };
 
 export interface UserRecord extends Record<string, unknown> {
   id: string;
@@ -50,9 +42,9 @@ export interface MigrationPlanItem {
 
 export function getDeterministicAvatarAssignment(index: number): { avatarId: number; color: string } {
   // Stride 17 es coprimo a 84, garantizando que los primeros 84 usuarios obtengan avatares distintos
-  const avatarId = (index * 17) % 84;
+  const avatarId = (index * 17) % OFFICIAL_AVATARS_COUNT;
   // Stride 7 es coprimo a 12, garantizando variedad de color entre usuarios consecutivos
-  const colorIndex = (index * 7 + Math.floor(index / 84)) % CIMA_CORPORATE_PALETTE.length;
+  const colorIndex = (index * 7 + Math.floor(index / OFFICIAL_AVATARS_COUNT)) % CIMA_CORPORATE_PALETTE.length;
   return {
     avatarId,
     color: CIMA_CORPORATE_PALETTE[colorIndex],
@@ -89,16 +81,33 @@ export async function purgeResidualMediaAvatars(): Promise<number> {
 }
 
 async function fetchPendingUsers(): Promise<UserRecord[]> {
-  const queryResult = await db.execute<UserRecord>(sql`
-    SELECT u.id, u.subject, u.email, u.first_name, u.last_name
-    FROM schema_auth.users u
-    WHERE NOT EXISTS (
-      SELECT 1 FROM schema_media.user_avatars a
-      WHERE a.user_id = u.subject::text
-    )
-    ORDER BY u.created_at ASC
-  `);
-  return (queryResult.rows ?? []) as UserRecord[];
+  const superuserUrl = process.env.DB_SUPERUSER_URL;
+  let targetDb = db;
+  let superuserPool: import("pg").Pool | null = null;
+
+  if (superuserUrl) {
+    const { default: pg } = await import("pg");
+    const { drizzle } = await import("drizzle-orm/node-postgres");
+    superuserPool = new pg.Pool({ connectionString: superuserUrl });
+    targetDb = drizzle(superuserPool) as typeof db;
+  }
+
+  try {
+    const queryResult = await targetDb.execute<UserRecord>(sql`
+      SELECT u.id, u.subject, u.email, u.first_name, u.last_name
+      FROM schema_auth.users u
+      WHERE NOT EXISTS (
+        SELECT 1 FROM schema_media.user_avatars a
+        WHERE a.user_id = u.subject::text
+      )
+      ORDER BY u.created_at ASC
+    `);
+    return (queryResult.rows ?? []) as UserRecord[];
+  } finally {
+    if (superuserPool) {
+      await superuserPool.end().catch(() => undefined);
+    }
+  }
 }
 
 async function applyMigrationItem(item: MigrationPlanItem): Promise<boolean> {

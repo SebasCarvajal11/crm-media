@@ -99,6 +99,8 @@ describe("migrate-user-avatars", () => {
     it("calls saveAvatarPreset for each user in non-dry-run mode", async () => {
       vi.mocked(avatarPresetService.saveAvatarPreset).mockResolvedValue({
         version: 1,
+        avatarId: 0,
+        color: "#86070c",
         urls: { "512": "url-512", "256": "url-256", "64": "url-64" },
       });
 
@@ -117,6 +119,8 @@ describe("migrate-user-avatars", () => {
       vi.mocked(avatarPresetService.saveAvatarPreset)
         .mockResolvedValueOnce({
           version: 1,
+          avatarId: 0,
+          color: "#86070c",
           urls: { "512": "url-512", "256": "url-256", "64": "url-64" },
         })
         .mockRejectedValueOnce(new Error("OCI network error"));

@@ -19,7 +19,6 @@ const envSchema = z.object({
   OCI_CONFIG_PROFILE: z.string().default("DEFAULT"),
   OCI_REGION: z.string().min(1),
   OCI_NAMESPACE: z.string().min(1),
-  OCI_BUCKET_AVATARS_PUBLIC: z.string().min(1),
   OCI_BUCKET_DOCS_PRIVATE: z.string().min(1),
   OCI_HEALTHCHECK_ENABLED: z
     .union([z.literal("true"), z.literal("false"), z.literal("1"), z.literal("0")])
@@ -32,7 +31,6 @@ const envSchema = z.object({
   DOC_PAR_TTL_SECONDS: z.coerce.number().default(300),
   /** Máximo de PARs expirados a borrar por bucket en cada generación de PAR. */
   OCI_PAR_PRUNE_MAX: z.coerce.number().int().min(0).max(500).default(80),
-  AVATAR_VERSIONS_TO_KEEP: z.coerce.number().int().min(1).default(3),
   /** Intervalo en ms del worker de escaneo de cuarentena. */
   OCI_QUARANTINE_SCAN_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
   /** Tiempo mínimo que un objeto debe estar en cuarentena antes de escanear (evita uploads incompletos). */

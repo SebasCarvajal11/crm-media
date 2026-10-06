@@ -71,8 +71,8 @@ HTTP 200
 [Asserts]
 jsonpath "$.data" isCollection
 
-# --- Usuario sin avatar (estado normal de perfil) ---
-# Login como client que no ha subido avatar
+# --- Usuario sin avatar previo en DB (garantía Zero-Null de fallback) ---
+# Login como client que no ha seleccionado preset
 POST {{base_url}}/api/v1/auth/login
 Content-Type: application/json
 {
@@ -87,5 +87,7 @@ GET {{base_url}}/api/v1/media/avatars/current
 Authorization: Bearer {{client_token}}
 HTTP 200
 [Asserts]
-jsonpath "$.data.version" == 0
+jsonpath "$.data.version" == 1
+jsonpath "$.data.avatarId" exists
+jsonpath "$.data.color" exists
 jsonpath "$.data.urls" isCollection

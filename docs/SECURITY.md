@@ -22,7 +22,7 @@ Para evitar la introducción de malware, exploits o ejecutables maliciosos:
 
 1. **Inspección de Magic Numbers**: Antes de confiar en el nombre o extensión del archivo (`.png`, `.pdf`), el servicio analiza los bytes de cabecera con la librería `file-type`. Cualquier discrepancia entre la extensión y el contenido binario real es rechazada.
 2. **Escaneo Antivirus con ClamAV**:
-   - **Avatares (Catálogo Oficial Server-Side)**: La superficie de ataque de subida libre de archivos de usuario se erradicó al reemplazar la carga manual por el catálogo interno de 84 avatares oficiales (`POST /api/v1/media/avatars/preset`). La subida multipart de fotos de perfil está permanentemente deshabilitada (410 Gone).
+   - **Avatares (Catálogo Oficial Server-Side)**: La superficie de ataque de subida libre de archivos de usuario se erradicó al reemplazar la carga manual por el catálogo interno de 84 avatares oficiales (`POST /api/v1/media/avatars/preset`) con fondo corporativo CIMA.
    - **Documentos (Asíncrono en Cuarentena)**: Para archivos de gran tamaño subidos directamente a OCI mediante PAR, el worker `quarantine-scan` descarga y analiza el archivo. Si está limpio, se confirma su disponibilidad; si está infectado, se elimina y se registra en auditoría.
 
 ---

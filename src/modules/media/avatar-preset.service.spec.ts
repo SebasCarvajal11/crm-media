@@ -12,9 +12,8 @@ vi.mock("../../db/connection", () => ({
 }));
 
 import { avatarPresetService, buildAvatarUrls } from "./avatar-preset.service";
-import { mediaController } from "./media.controller";
 
-describe("avatarPresetService & 410 Deprecation", () => {
+describe("avatarPresetService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -56,11 +55,5 @@ describe("avatarPresetService & 410 Deprecation", () => {
     expect(result.urls["64"]).toBe("/avatars/avatar-10.webp?c=86070c");
     expect(mockInsert).toHaveBeenCalledTimes(1);
     expect(mockDelete).toHaveBeenCalledTimes(1);
-  });
-
-  it("mediaController.uploadAvatar returns 410 Gone (manual upload deprecated)", async () => {
-    await expect(mediaController.uploadAvatar(new Request("http://localhost"), {})).rejects.toMatchObject({
-      statusCode: 410,
-    });
   });
 });

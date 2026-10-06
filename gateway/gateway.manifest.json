@@ -25,12 +25,6 @@
       "openapi_ref": "POST /api/v1/media/avatars/preset"
     },
     {
-      "endpoint": "/api/v1/media/avatars",
-      "method": "POST",
-      "backend_url": "/api/v1/media/avatars",
-      "openapi_ref": "POST /api/v1/media/avatars"
-    },
-    {
       "endpoint": "/api/v1/media/documents/upload-url",
       "method": "POST",
       "backend_url": "/api/v1/media/documents/upload-url",

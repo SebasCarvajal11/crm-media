@@ -9,17 +9,16 @@ Este documento describe las entidades de negocio, el ciclo de vida de los activo
 El avatar representa la imagen pública oficial de perfil del usuario dentro de la plataforma.
 
 ```text
-[ Selección Catálogo (0-83) + Color ] ──► [ Carga Asset Oficial ] ──► [ Composición Sharp (512x512) ]
-                                                                                  │
-[ Entrega URLs Variantes ] ◄── [ Inserción Metadatos ] ◄── [ Carga OCI (64, 256, 512) ]
+[ Registro user.registered o Selección Preset ] ──► [ Idempotencia user_avatars ] ──► [ Resolución Zero-Null ]
+                                                                                               │
+[ Entrega Estática / CDN ] ◄── [ Frontend / Consumidores ] ◄── [ URLs /avatars/avatar-{id}.webp?c={color} ]
 ```
 
 ### Reglas de Negocio para Avatares
-1. **Catálogo Oficial CIMA y Marca Unificada**: La plataforma utiliza un catálogo curado de 84 avatares institucionales con selección de color de fondo corporativo mediante `POST /api/v1/media/avatars/preset`. La subida manual libre de archivos binarios queda permanentemente deshabilitada (410 Gone) para salvaguardar la coherencia de marca, prevenir cuellos de botella de red y erradicar vectores de ataque por carga de binarios.
-2. **Unicidad y Versionado**: Cada usuario posee un único avatar activo. Al asignar un nuevo preset, se incrementa `avatarVersion` para invalidar de forma determinista el caché en los navegadores cliente.
-3. **Composición y Optimización de Imagen**: El avatar seleccionado se compone server-side con Sharp sobre un fondo con el color corporativo elegido, exportándose a tres variantes WebP optimizadas: 64px, 256px y 512px.
-4. **Resiliencia de Dos Fases y Rollback Compensatorio**: Las variantes se suben a OCI antes de abrir la transacción SQL ultra-corta. Si la base de datos falla, se activa una compensación automática que purga los objetos en OCI.
-5. **Consulta Masiva**: El endpoint `GET /api/v1/media/avatars/users?ids=u1,u2` permite a las vistas de equipo y tableros resolver múltiples avatares en un solo viaje HTTP.
+1. **Catálogo Oficial CIMA y Marca Unificada**: La plataforma utiliza un catálogo curado de 84 avatares institucionales (0..83) con paleta de 12 colores corporativos CIMA mediante `POST /api/v1/media/avatars/preset`.
+2. **Garantía Zero-Null**: Ningún usuario carece de avatar. Ante eventos `user.registered` se asigna automáticamente de forma persistida e idempotente; ante consultas de usuarios no persistidos se computa un fallback determinista universal.
+3. **Entrega Estática de Alto Rendimiento**: Los avatares se resuelven como URLs `/avatars/avatar-{id}.webp?c={color}` sin sobrecosto de subida o procesamiento en storage de nube.
+4. **Consulta Masiva Tolerante**: El endpoint `GET /api/v1/media/avatars/users?ids=...` permite resolver lotes de hasta 100 identificadores admitiendo listas heterogéneas sin abortar.
 
 ---
 

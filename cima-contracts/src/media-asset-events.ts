@@ -145,16 +145,60 @@ export type FileAccessGranted = z.infer<typeof fileAccessGrantedSchema>;
 export type FileDeleted = z.infer<typeof fileDeletedSchema>;
 export type FileCommandFailed = z.infer<typeof fileCommandFailedSchema>;
 
+export const OFFICIAL_AVATARS_COUNT = 84 as const;
+
+export const CIMA_CORPORATE_PALETTE = [
+  "#86070c",
+  "#a8131a",
+  "#680609",
+  "#bd2f35",
+  "#1e3a8a",
+  "#1d4ed8",
+  "#065f46",
+  "#047857",
+  "#d97706",
+  "#5b21b6",
+  "#475569",
+  "#282829",
+] as const;
+
+export type CimaCorporateColor = (typeof CIMA_CORPORATE_PALETTE)[number];
+
+export function hashStringFnv1a(str: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+export function resolveDeterministicAvatar(userId?: string | null): {
+  avatarId: number;
+  color: CimaCorporateColor;
+} {
+  const seed = (typeof userId === "string" ? userId.trim() : "") || "cima-default-user";
+  const h1 = hashStringFnv1a(seed);
+  const h2 = hashStringFnv1a(`${seed}:color`);
+  const avatarId = h1 % OFFICIAL_AVATARS_COUNT;
+  const colorIndex = h2 % CIMA_CORPORATE_PALETTE.length;
+  return {
+    avatarId,
+    color: CIMA_CORPORATE_PALETTE[colorIndex],
+  };
+}
+
 export const avatarPresetPayloadSchema = z.object({
-  avatarId: z.coerce.number().int().min(0).max(83),
+  avatarId: z.coerce.number().int().min(0).max(OFFICIAL_AVATARS_COUNT - 1),
   color: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Color hexadecimal inválido"),
 });
 export type AvatarPresetPayload = z.infer<typeof avatarPresetPayloadSchema>;
 
 export const userAvatarMetadataSchema = z.object({
-  avatarId: z.number().int().min(0).max(83),
+  avatarId: z.number().int().min(0).max(OFFICIAL_AVATARS_COUNT - 1),
   color: z.string(),
   version: z.number().int().default(1),
   urls: z.record(z.string(), z.string()).optional(),
 });
 export type UserAvatarMetadata = z.infer<typeof userAvatarMetadataSchema>;
+

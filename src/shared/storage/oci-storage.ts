@@ -8,21 +8,6 @@ import { beforeParCreate } from "./oci-par-prune";
 import { env } from "../../config/env";
 
 export const ociStorage = {
-  uploadPublicAvatar: async (key: string, body: Buffer, contentType: string) => {
-    const namespace = await getNamespace();
-    await withRetry(async () => {
-      await client.putObject({
-        namespaceName: namespace,
-        bucketName: env.OCI_BUCKET_AVATARS_PUBLIC,
-        objectName: key,
-        putObjectBody: body,
-        contentType,
-        contentLength: body.length,
-      });
-    }, { maxAttempts: 3, delayMs: 150 });
-    return `${objectStorageEndpoint}/n/${namespace}/b/${env.OCI_BUCKET_AVATARS_PUBLIC}/o/${encodeURIComponent(key)}`;
-  },
-
   getPublicObjectUrl: async (bucketName: string, key: string) => {
     const namespace = await getNamespace();
     return `${objectStorageEndpoint}/n/${namespace}/b/${bucketName}/o/${encodeURIComponent(key)}`;
