@@ -13,7 +13,8 @@ Todos los endpoints que interactúan con usuarios finales requieren autenticaci�
 | `GET` | `/api/v1/health` | Diagnóstico de salud (DB, Redis, OCI, ClamAV) | Público |
 | `GET` | `/api/v1/metrics` | Métricas operativas Prometheus | Monitoreo interno |
 | `GET` | `/api/v1/docs/media/openapi.yaml` | Especificación OpenAPI v3 del servicio | Público |
-| `POST` | `/api/v1/media/avatars` | Sube y procesa la imagen de perfil del usuario | Todos (autenticados) |
+| `POST` | `/api/v1/media/avatars/preset` | Asigna avatar predefinido del catálogo oficial y color corporativo CIMA | Todos (autenticados) |
+| `POST` | `/api/v1/media/avatars` | *Obsoleto (410 Gone)*: Subida manual deshabilitada en favor de presets | Todos (autenticados) |
 | `GET` | `/api/v1/media/avatars/current` | Retorna la URL vigente del avatar del usuario | Todos (autenticados) |
 | `GET` | `/api/v1/media/avatars/users?ids=...` | Consulta masiva de avatares por lista de IDs | Todos (autenticados) |
 | `POST` | `/api/v1/media/documents/upload-url` | Genera URL prefirmada (PAR) para subir archivo a OCI | Workers y Administradores |
