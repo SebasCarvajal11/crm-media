@@ -40,6 +40,9 @@ import {
   avatarService,
   processAvatarVariants,
   uploadVariantsToOci,
+  cleanupOldAvatarVersions,
+  compensateUploadedVariants,
+  recordAvatarInDatabase,
 } from "./avatar.service";
 
 describe("avatarService - consultas de avatares y procesamiento de variantes", () => {
@@ -136,6 +139,62 @@ describe("avatarService - consultas de avatares y procesamiento de variantes", (
       expect(mockUploadPublicAvatar).toHaveBeenCalledTimes(2);
       expect(res.urls["512"]).toBe("https://cdn.cima.dev/key_512.webp");
       expect(res.urls["64"]).toBe("https://cdn.cima.dev/key_64.webp");
+    });
+  });
+
+  describe("cleanupOldAvatarVersions", () => {
+    it("lists and deletes stale versions from OCI and database", async () => {
+      mockListObjects.mockResolvedValue([
+        "avatars/u1/v1/pic_64.webp",
+        "avatars/u1/v2/pic_64.webp",
+        "avatars/u1/v3/pic_64.webp",
+      ]);
+      mockDelete.mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      });
+
+      await cleanupOldAvatarVersions("u1", 4);
+
+      expect(mockListObjects).toHaveBeenCalledWith(expect.any(String), "avatars/u1/");
+      expect(mockDelete).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("compensateUploadedVariants", () => {
+    it("deletes all uploaded variants from OCI", async () => {
+      const uploaded = [
+        { px: 512, key: "avatars/u1/v1/u_512.webp", url: "https://...", sizeBytes: 100 },
+        { px: 64, key: "avatars/u1/v1/u_64.webp", url: "https://...", sizeBytes: 30 },
+      ];
+      await compensateUploadedVariants(uploaded);
+      expect(mockDeleteObject).toHaveBeenCalledTimes(2);
+      expect(mockDeleteObject).toHaveBeenCalledWith(expect.any(String), "avatars/u1/v1/u_512.webp");
+      expect(mockDeleteObject).toHaveBeenCalledWith(expect.any(String), "avatars/u1/v1/u_64.webp");
+    });
+  });
+
+  describe("recordAvatarInDatabase", () => {
+    it("executes transaction, advisory lock and inserts records for each variant", async () => {
+      const mockTx = {
+        execute: vi.fn().mockResolvedValue(undefined),
+        insert: vi.fn().mockReturnValue({
+          values: vi.fn().mockResolvedValue(undefined),
+        }),
+      };
+      mockTransaction.mockImplementation(async (callback: any) => callback(mockTx));
+
+      await recordAvatarInDatabase({
+        userId: "user-1",
+        avatarVersion: 1,
+        storedOriginalName: "preset-1.webp",
+        uploaded: [
+          { px: 512, key: "avatars/user-1/v1/u_512.webp", url: "https://...", sizeBytes: 100 },
+        ],
+      });
+
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
+      expect(mockTx.execute).toHaveBeenCalledTimes(1);
+      expect(mockTx.insert).toHaveBeenCalledTimes(1);
     });
   });
 });

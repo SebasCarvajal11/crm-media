@@ -1,13 +1,9 @@
 import sharp from "sharp";
-import { v4 as uuidv4 } from "uuid";
 import { and, eq, sql, inArray } from "drizzle-orm";
 import { db } from "../../db/connection";
 import { mediaAssets } from "../../db/schema";
 import { ociStorage } from "../../shared/storage/oci-storage";
-import { getLogger } from "../../shared/logger";
 import { env } from "../../config/env";
-
-const logger = getLogger();
 
 const avatarSizes = [512, 256, 64] as const;
 

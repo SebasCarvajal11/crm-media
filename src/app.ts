@@ -43,7 +43,7 @@ export const createApp = () => {
   app.use(
     "*",
     bodyLimit({
-      maxSize: 10 * 1024 * 1024, // 10MB payload limit for Media service (to support avatar uploads)
+      maxSize: 10 * 1024 * 1024, // 10MB payload limit for Media service requests
       onError: (c) => {
         return c.json({ error: "El tamaño del payload excede el límite de 10MB" }, 413);
       },

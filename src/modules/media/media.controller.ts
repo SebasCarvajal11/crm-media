@@ -13,21 +13,6 @@ const avatarPresetSchema = z.object({
   color: z.string().regex(HEX_COLOR_REGEX, "Color debe ser un código hexadecimal válido (ej: #86070c)"),
 });
 
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
-
-const assertAvatarRequestWithinSizeLimit = (request: Request, file?: File) => {
-  if (file && file.size > MAX_AVATAR_BYTES) {
-    throw new AppError(413, "Avatar excede 5MB");
-  }
-  const contentLength = request.headers.get("content-length");
-  if (contentLength) {
-    const len = Number.parseInt(contentLength, 10);
-    if (Number.isFinite(len) && len > MAX_AVATAR_BYTES) {
-      throw new AppError(413, "Avatar excede 5MB");
-    }
-  }
-};
-
 const getContextFromRequest = (request: Request) => {
   const ipAddress = getTrustedClientIp(request.headers);
   const userAgent = request.headers.get("user-agent") || "";
