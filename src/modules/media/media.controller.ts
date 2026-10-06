@@ -1,8 +1,17 @@
 import { AppError } from "../../shared/middlewares/error-handler.middleware";
 import { avatarService } from "./avatar.service";
+import { avatarPresetService } from "./avatar-preset.service";
 import { documentService } from "./document.service";
 import { storageService } from "./storage.service";
 import { getTrustedClientIp } from "@sebascarvajal11/cima-contracts/hono-security-middleware";
+import { z } from "zod";
+
+const HEX_COLOR_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+const avatarPresetSchema = z.object({
+  avatarId: z.coerce.number().int().min(0).max(83),
+  color: z.string().regex(HEX_COLOR_REGEX, "Color debe ser un código hexadecimal válido (ej: #86070c)"),
+});
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
@@ -26,29 +35,30 @@ const getContextFromRequest = (request: Request) => {
 };
 
 export const mediaController = {
-  // ─── Avatares (mantiene flujo buffer — son pequeños y requieren sharp resize) ───
-  uploadAvatar: async (request: Request, user: any) => {
-    assertAvatarRequestWithinSizeLimit(request);
-
-    const form = await request.formData();
-    const uploaded = form.get("file");
-    if (!(uploaded instanceof File)) throw new AppError(400, "Campo file es requerido");
-
-    assertAvatarRequestWithinSizeLimit(request, uploaded);
-
-    const bytes = await uploaded.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    if (buffer.length > MAX_AVATAR_BYTES) throw new AppError(413, "Avatar excede 5MB");
-    
+  // ─── Avatares: Preset oficial con color corporativo CIMA ───
+  saveAvatarPreset: async (body: unknown, user: any, request: Request) => {
+    const parseResult = avatarPresetSchema.safeParse(body);
+    if (!parseResult.success) {
+      const issue = parseResult.error.issues[0]?.message ?? "Parámetros inválidos";
+      throw new AppError(400, `Parámetros de avatar preset inválidos: ${issue}`);
+    }
     const { ipAddress, userAgent } = getContextFromRequest(request);
-    const data = await avatarService.uploadAvatar(user.userId, {
-      originalName: uploaded.name,
-      rawBuffer: buffer,
+    const data = await avatarPresetService.saveAvatarPreset(user.userId, {
+      avatarId: parseResult.data.avatarId,
+      color: parseResult.data.color,
       actor: user,
       ipAddress,
       userAgent,
     });
     return { data };
+  },
+
+  // ─── Endpoint de subida manual deprecado (410 Gone) ───
+  uploadAvatar: async (_request: Request, _user: any) => {
+    throw new AppError(
+      410,
+      "La subida manual de avatares está deprecada (410 Gone). Utilice el catálogo de avatares predeterminados con color corporativo."
+    );
   },
 
   // ─── Documentos: flujo Pre-Signed URL ──────────────────────────────────────────

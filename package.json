@@ -18,6 +18,7 @@
     "worker:quarantine-scan": "node dist/workers/quarantine-scan.worker.js",
     "worker:email": "node dist/workers/email.worker.js",
     "db:bootstrap": "tsx src/scripts/bootstrap.ts",
+    "migrate:avatars": "tsx src/scripts/migrate-user-avatars.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "tsx src/scripts/ensure-db-schema.ts",
     "openapi:check": "node scripts/validate-openapi.mjs",

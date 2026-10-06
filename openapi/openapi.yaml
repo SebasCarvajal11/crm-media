@@ -107,10 +107,44 @@ paths:
             application/yaml:
               schema:
                 type: string
+  /api/v1/media/avatars/preset:
+    post:
+      tags: [Avatares]
+      summary: Seleccionar y componer avatar predeterminado con color corporativo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [avatarId, color]
+              properties:
+                avatarId:
+                  type: integer
+                  minimum: 0
+                  maximum: 83
+                  example: 15
+                color:
+                  type: string
+                  pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+                  example: "#86070c"
+      responses:
+        "201":
+          description: Avatar preset compuesto y asignado
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/DataEnvelope"
+        "400":
+          description: Parámetros inválidos
+        "401":
+          description: No autenticado
   /api/v1/media/avatars:
     post:
       tags: [Avatares]
-      summary: Subir avatar del usuario actual
+      summary: Subir avatar del usuario actual (Deprecado)
+      deprecated: true
       requestBody:
         required: true
         content:
@@ -123,13 +157,12 @@ paths:
                   type: string
                   format: binary
       responses:
-        "201":
-          description: Avatar actualizado
+        "410":
+          description: Endpoint deprecado (410 Gone) - Use el catálogo de avatares predeterminados
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/DataEnvelope"
+                $ref: "#/components/schemas/Error"
   /api/v1/media/avatars/current:
     get:
       tags: [Avatares]

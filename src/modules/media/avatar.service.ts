@@ -20,7 +20,7 @@ const extractVersionFromAvatarKey = (key: string) => {
   return Number.parseInt(match[1], 10);
 };
 
-const cleanupOldAvatarVersions = async (userId: string, currentVersion: number) => {
+export const cleanupOldAvatarVersions = async (userId: string, currentVersion: number) => {
   const keepFromVersion = Math.max(1, currentVersion - env.AVATAR_VERSIONS_TO_KEEP + 1);
   const prefix = `avatars/${userId}/`;
   const keys = await ociStorage.listObjects(env.OCI_BUCKET_AVATARS_PUBLIC, prefix);
@@ -73,7 +73,7 @@ interface RecordAvatarParams {
   userAgent?: string;
 }
 
-const processAvatarVariants = async (
+export const processAvatarVariants = async (
   rawBuffer: Buffer,
   userId: string,
   avatarVersion: number,
@@ -91,7 +91,7 @@ const processAvatarVariants = async (
   );
 };
 
-const uploadVariantsToOci = async (
+export const uploadVariantsToOci = async (
   variants: ProcessedVariant[]
 ): Promise<{ uploaded: UploadedVariant[]; urls: Record<string, string> }> => {
   const urls: Record<string, string> = {};
@@ -105,7 +105,7 @@ const uploadVariantsToOci = async (
   return { uploaded, urls };
 };
 
-const recordAvatarInDatabase = async (params: RecordAvatarParams): Promise<void> => {
+export const recordAvatarInDatabase = async (params: RecordAvatarParams): Promise<void> => {
   const { userId, avatarVersion, storedOriginalName, uploaded, actor, ipAddress, userAgent } = params;
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${userId} || 'avatar_upload'))`);
@@ -139,7 +139,7 @@ const recordAvatarInDatabase = async (params: RecordAvatarParams): Promise<void>
   });
 };
 
-const compensateUploadedVariants = async (uploaded: UploadedVariant[]): Promise<void> => {
+export const compensateUploadedVariants = async (uploaded: UploadedVariant[]): Promise<void> => {
   await Promise.allSettled(
     uploaded.map((item) => ociStorage.deleteObject(env.OCI_BUCKET_AVATARS_PUBLIC, item.key))
   );

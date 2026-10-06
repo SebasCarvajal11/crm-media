@@ -12,16 +12,23 @@ export const mediaRoutes = new Hono<AppEnv>();
 
 mediaRoutes.use("*", authMiddleware);
 
-// ─── Avatares (buffer: necesitan resize con sharp) ─────────────────────────
+// ─── Avatares (catálogo predeterminado y deprecación de subida libre) ───────
 mediaRoutes.post(
-  "/avatars",
+  "/avatars/preset",
   userRateLimit({ maxAttempts: env.RATE_LIMIT_MEDIA_AVATAR_MAX, windowMs: env.RATE_LIMIT_MEDIA_AVATAR_WINDOW_MS }),
   async (c) => {
     const user = c.get("user");
-    const payload = await mediaController.uploadAvatar(c.req.raw, user);
+    const body = await c.req.json();
+    const payload = await mediaController.saveAvatarPreset(body, user, c.req.raw);
     return c.json(payload, 201);
   },
 );
+
+mediaRoutes.post("/avatars", async (c) => {
+  const user = c.get("user");
+  const payload = await mediaController.uploadAvatar(c.req.raw, user);
+  return c.json(payload, 410);
+});
 
 mediaRoutes.get("/avatars/current", async (c) => {
   const { userId } = c.get("user");

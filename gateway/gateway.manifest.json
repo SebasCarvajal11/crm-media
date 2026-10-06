@@ -19,6 +19,12 @@
       "openapi_ref": "GET /api/v1/openapi.yaml"
     },
     {
+      "endpoint": "/api/v1/media/avatars/preset",
+      "method": "POST",
+      "backend_url": "/api/v1/media/avatars/preset",
+      "openapi_ref": "POST /api/v1/media/avatars/preset"
+    },
+    {
       "endpoint": "/api/v1/media/avatars",
       "method": "POST",
       "backend_url": "/api/v1/media/avatars",
