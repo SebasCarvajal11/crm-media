@@ -144,3 +144,17 @@ export type FileMetadataResolved = z.infer<typeof fileMetadataResolvedSchema>;
 export type FileAccessGranted = z.infer<typeof fileAccessGrantedSchema>;
 export type FileDeleted = z.infer<typeof fileDeletedSchema>;
 export type FileCommandFailed = z.infer<typeof fileCommandFailedSchema>;
+
+export const avatarPresetPayloadSchema = z.object({
+  avatarId: z.coerce.number().int().min(0).max(83),
+  color: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Color hexadecimal inválido"),
+});
+export type AvatarPresetPayload = z.infer<typeof avatarPresetPayloadSchema>;
+
+export const userAvatarMetadataSchema = z.object({
+  avatarId: z.number().int().min(0).max(83),
+  color: z.string(),
+  version: z.number().int().default(1),
+  urls: z.record(z.string(), z.string()).optional(),
+});
+export type UserAvatarMetadata = z.infer<typeof userAvatarMetadataSchema>;
