@@ -64,6 +64,15 @@ try {
     ON "${dbSchema}"."media_assets" ("object_key");
   `);
   await client.query(`
+    CREATE TABLE IF NOT EXISTS "${dbSchema}"."user_avatars" (
+      "user_id" text PRIMARY KEY NOT NULL,
+      "avatar_id" integer NOT NULL,
+      "color" varchar(20) NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+  `);
+  await client.query(`
     CREATE TABLE IF NOT EXISTS "${dbSchema}"."audit_logs" (
       "id" bigserial NOT NULL,
       "actor_sub" uuid,

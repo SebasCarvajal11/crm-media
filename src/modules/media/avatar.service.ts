@@ -1,211 +1,64 @@
-import sharp from "sharp";
-import { and, eq, sql, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db/connection";
-import { mediaAssets } from "../../db/schema";
-import { ociStorage } from "../../shared/storage/oci-storage";
-import { env } from "../../config/env";
+import { userAvatars } from "../../db/schema";
+import { buildAvatarUrls } from "./avatar-preset.service";
 
-const avatarSizes = [512, 256, 64] as const;
-
-const extractVersionFromAvatarKey = (key: string) => {
-  const match = key.match(/\/v(\d+)\//);
-  if (!match) return null;
-  return Number.parseInt(match[1], 10);
-};
-
-export const cleanupOldAvatarVersions = async (userId: string, currentVersion: number) => {
-  const keepFromVersion = Math.max(1, currentVersion - env.AVATAR_VERSIONS_TO_KEEP + 1);
-  const prefix = `avatars/${userId}/`;
-  const keys = await ociStorage.listObjects(env.OCI_BUCKET_AVATARS_PUBLIC, prefix);
-  const staleKeys = keys.filter((key) => {
-    const version = extractVersionFromAvatarKey(key);
-    return version !== null && version < keepFromVersion;
-  });
-  for (const key of staleKeys) {
-    await ociStorage.deleteObject(env.OCI_BUCKET_AVATARS_PUBLIC, key);
-  }
-  await db
-    .delete(mediaAssets)
-    .where(
-      and(
-        eq(mediaAssets.userId, userId),
-        eq(mediaAssets.kind, "avatar"),
-        sql`${mediaAssets.avatarVersion} < ${keepFromVersion}`
-      )
-    );
-};
-
-interface ProcessedVariant {
-  px: number;
-  buffer: Buffer;
-  key: string;
+export interface AvatarDto {
+  version: number;
+  avatarId: number | null;
+  color: string | null;
+  urls: Record<"64" | "256" | "512", string> | Record<string, string>;
 }
-
-interface UploadedVariant {
-  px: number;
-  key: string;
-  url: string;
-  sizeBytes: number;
-}
-
-interface RecordAvatarParams {
-  userId: string;
-  avatarVersion: number;
-  storedOriginalName: string;
-  uploaded: UploadedVariant[];
-  actor?: { userId: string; sub: string; role: string; email: string };
-  ipAddress?: string;
-  userAgent?: string;
-}
-
-export const processAvatarVariants = async (
-  rawBuffer: Buffer,
-  userId: string,
-  avatarVersion: number,
-  baseId: string
-): Promise<ProcessedVariant[]> => {
-  return Promise.all(
-    avatarSizes.map(async (px) => {
-      const buffer = await sharp(rawBuffer)
-        .resize(px, px, { fit: "cover" })
-        .webp({ quality: 84 })
-        .toBuffer();
-      const key = `avatars/${userId}/v${avatarVersion}/${baseId}_${px}.webp`;
-      return { px, buffer, key };
-    })
-  );
-};
-
-export const uploadVariantsToOci = async (
-  variants: ProcessedVariant[]
-): Promise<{ uploaded: UploadedVariant[]; urls: Record<string, string> }> => {
-  const urls: Record<string, string> = {};
-  const uploaded = await Promise.all(
-    variants.map(async (v) => {
-      const url = await ociStorage.uploadPublicAvatar(v.key, v.buffer, "image/webp");
-      urls[String(v.px)] = url;
-      return { px: v.px, key: v.key, url, sizeBytes: v.buffer.length };
-    })
-  );
-  return { uploaded, urls };
-};
-
-export const recordAvatarInDatabase = async (params: RecordAvatarParams): Promise<void> => {
-  const { userId, avatarVersion, storedOriginalName, uploaded, actor, ipAddress, userAgent } = params;
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${userId} || 'avatar_upload'))`);
-    for (const item of uploaded) {
-      await tx.insert(mediaAssets).values({
-        userId,
-        kind: "avatar",
-        avatarVersion,
-        width: item.px,
-        bucket: "public",
-        objectKey: item.key,
-        originalName: storedOriginalName,
-        mimeType: "image/webp",
-        sizeBytes: item.sizeBytes,
-      });
-    }
-    if (actor) {
-      const { createAuditRepository } = await import("./repository/audit.repository");
-      await createAuditRepository(tx).createAuditLog({
-        actorSub: actor.sub,
-        actorEmail: actor.email,
-        actorRole: actor.role as any,
-        action: "avatar.updated",
-        resourceType: "user",
-        resourceId: userId,
-        ipAddress: ipAddress || "",
-        userAgent: userAgent || "",
-        details: { originalName: storedOriginalName, avatarVersion },
-      });
-    }
-  });
-};
-
-export const compensateUploadedVariants = async (uploaded: UploadedVariant[]): Promise<void> => {
-  await Promise.allSettled(
-    uploaded.map((item) => ociStorage.deleteObject(env.OCI_BUCKET_AVATARS_PUBLIC, item.key))
-  );
-};
 
 export const avatarService = {
-  getCurrentAvatar: async (userId: string) => {
-    const latestVersion = await db
-      .select({ latest: sql<number>`coalesce(max(${mediaAssets.avatarVersion}), 0)` })
-      .from(mediaAssets)
-      .where(and(eq(mediaAssets.userId, userId), eq(mediaAssets.kind, "avatar")));
-
-    const version = latestVersion[0]?.latest ?? 0;
-    if (version <= 0) return { version: 0, urls: {} };
-
+  getCurrentAvatar: async (userId: string): Promise<AvatarDto> => {
     const rows = await db
-      .select({ objectKey: mediaAssets.objectKey })
-      .from(mediaAssets)
-      .where(
-        and(
-          eq(mediaAssets.userId, userId),
-          eq(mediaAssets.kind, "avatar"),
-          eq(mediaAssets.avatarVersion, version)
-        )
-      );
+      .select({
+        avatarId: userAvatars.avatarId,
+        color: userAvatars.color,
+      })
+      .from(userAvatars)
+      .where(eq(userAvatars.userId, userId));
 
-    const urls: Record<string, string> = {};
-    for (const row of rows) {
-      const size = row.objectKey.match(/_(64|256|512)\.webp$/)?.[1] ?? null;
-      if (!size) continue;
-      urls[size] = await ociStorage.getPublicObjectUrl(env.OCI_BUCKET_AVATARS_PUBLIC, row.objectKey);
+    const row = rows[0];
+    if (!row) {
+      return { version: 0, avatarId: null, color: null, urls: {} };
     }
 
-    return { version, urls };
+    const urls = buildAvatarUrls(row.avatarId, row.color);
+    return {
+      version: 1,
+      avatarId: row.avatarId,
+      color: row.color,
+      urls,
+    };
   },
 
-  getCurrentAvatarsByUsers: async (userIds: string[]) => {
+  getCurrentAvatarsByUsers: async (
+    userIds: string[]
+  ): Promise<{ items: Record<string, AvatarDto> }> => {
     const uniqueUserIds = Array.from(new Set(userIds.filter(Boolean)));
     if (uniqueUserIds.length === 0) {
-      return { items: {} as Record<string, { version: number; urls: Record<string, string> }> };
+      return { items: {} };
     }
 
     const rows = await db
       .select({
-        userId: mediaAssets.userId,
-        avatarVersion: mediaAssets.avatarVersion,
-        objectKey: mediaAssets.objectKey,
+        userId: userAvatars.userId,
+        avatarId: userAvatars.avatarId,
+        color: userAvatars.color,
       })
-      .from(mediaAssets)
-      .where(
-        and(
-          eq(mediaAssets.kind, "avatar"),
-          inArray(mediaAssets.userId, uniqueUserIds),
-          sql`${mediaAssets.avatarVersion} = (
-            SELECT MAX(sub.avatar_version)
-            FROM schema_media.media_assets sub
-            WHERE sub.user_id = ${mediaAssets.userId}
-              AND sub.kind = 'avatar'
-          )`
-        )
-      );
+      .from(userAvatars)
+      .where(inArray(userAvatars.userId, uniqueUserIds));
 
-    const latestRows = rows;
-
-    const items: Record<string, { version: number; urls: Record<string, string> }> = {};
-    const grouped = new Map<string, typeof latestRows>();
-    for (const row of latestRows) {
-      const list = grouped.get(row.userId) ?? [];
-      list.push(row);
-      grouped.set(row.userId, list);
-    }
-
-    for (const [userId, userRows] of grouped) {
-      const version = userRows[0]?.avatarVersion ?? 0;
-      const urls: Record<string, string> = {};
-      for (const row of userRows) {
-        const size = row.objectKey.match(/_(64|256|512)\.webp$/)?.[1] ?? null;
-        if (!size) continue;
-        urls[size] = await ociStorage.getPublicObjectUrl(env.OCI_BUCKET_AVATARS_PUBLIC, row.objectKey);
-      }
-      items[userId] = { version, urls };
+    const items: Record<string, AvatarDto> = {};
+    for (const row of rows) {
+      items[row.userId] = {
+        version: 1,
+        avatarId: row.avatarId,
+        color: row.color,
+        urls: buildAvatarUrls(row.avatarId, row.color),
+      };
     }
 
     return { items };

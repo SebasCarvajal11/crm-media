@@ -21,6 +21,14 @@ export const mediaAssets = mediaSchema.table("media_assets", {
   uniqueIndex("uq_media_assets_object_key").on(t.objectKey),
 ]);
 
+export const userAvatars = mediaSchema.table("user_avatars", {
+  userId: text("user_id").primaryKey(),
+  avatarId: integer("avatar_id").notNull(),
+  color: varchar("color", { length: 20 }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const auditLogs = mediaSchema.table(
   "audit_logs",
   {

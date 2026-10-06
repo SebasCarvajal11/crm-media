@@ -89,37 +89,24 @@ export const storageService = {
     const [mediaRows, collabRes] = await Promise.all([
       db
         .select({
-          kind: mediaAssets.kind,
           count: sql<number>`count(*)::int`,
           bytes: sql<number>`coalesce(sum(${mediaAssets.sizeBytes}), 0)::bigint`,
         })
         .from(mediaAssets)
-        .groupBy(mediaAssets.kind)
+        .where(eq(mediaAssets.kind, "document"))
         .catch(() => []),
       fetchCollabMetrics(),
     ]);
 
-    let documentsCount = 0;
-    let documentsBytes = 0;
-    let avatarsCount = 0;
-    let avatarsBytes = 0;
-
-    for (const row of mediaRows) {
-      const count = Number(row.count) || 0;
-      const bytes = Number(row.bytes) || 0;
-      if (row.kind === "document") {
-        documentsCount = count;
-        documentsBytes = bytes;
-      } else if (row.kind === "avatar") {
-        avatarsCount = count;
-        avatarsBytes = bytes;
-      }
-    }
+    const documentsCount = Number(mediaRows[0]?.count) || 0;
+    const documentsBytes = Number(mediaRows[0]?.bytes) || 0;
+    const avatarsCount = 0;
+    const avatarsBytes = 0;
 
     const projectFilesCount = Number(collabRes.count) || 0;
     const projectFilesBytes = Number(collabRes.bytes) || 0;
 
-    const usedBytes = documentsBytes + avatarsBytes + projectFilesBytes;
+    const usedBytes = documentsBytes + projectFilesBytes;
     const availableBytes = Math.max(0, quotaBytes - usedBytes);
     const usedPercentage = quotaBytes > 0
       ? Number(((usedBytes / quotaBytes) * 100).toFixed(2))
@@ -130,7 +117,7 @@ export const storageService = {
       usedBytes,
       availableBytes,
       usedPercentage,
-      totalFilesCount: documentsCount + avatarsCount + projectFilesCount,
+      totalFilesCount: documentsCount + projectFilesCount,
       projectFilesCount,
       projectFilesBytes,
       avatarsCount,

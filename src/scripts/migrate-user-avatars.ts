@@ -70,13 +70,30 @@ export function generateMigrationPlan(users: UserRecord[]): MigrationPlanItem[] 
   });
 }
 
+export async function purgeResidualMediaAvatars(): Promise<number> {
+  try {
+    const result = await db.execute(sql`
+      DELETE FROM schema_media.media_assets
+      WHERE kind = 'avatar'
+    `);
+    const count = Number(result.rowCount ?? 0);
+    if (count > 0) {
+      console.log(`[LIMPIEZA] Purgados ${count} registros residuales de avatar en media_assets.`);
+    }
+    return count;
+  } catch (err) {
+    logger.warn({ topic: "avatar-migration", err }, "Aviso: no se pudo purgar media_assets residual");
+    return 0;
+  }
+}
+
 async function fetchPendingUsers(): Promise<UserRecord[]> {
   const queryResult = await db.execute<UserRecord>(sql`
     SELECT u.id, u.email, u.first_name, u.last_name
     FROM schema_auth.users u
     WHERE NOT EXISTS (
-      SELECT 1 FROM schema_media.media_assets m
-      WHERE m.user_id = u.id AND m.kind = 'avatar'
+      SELECT 1 FROM schema_media.user_avatars a
+      WHERE a.user_id = u.id::text
     )
     ORDER BY u.created_at ASC
   `);
@@ -159,6 +176,8 @@ export async function migrateUserAvatars(
       failed++;
     }
   }
+
+  await purgeResidualMediaAvatars();
 
   console.log(`Migración finalizada: ${totalMigrated} completados, ${failed} fallidos.`);
   return { totalMigrated, failed, plan };

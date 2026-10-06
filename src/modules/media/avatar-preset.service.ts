@@ -1,21 +1,12 @@
-import fs from "node:fs";
-import path from "node:path";
-import sharp from "sharp";
-import { v4 as uuidv4 } from "uuid";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../../db/connection";
-import { mediaAssets } from "../../db/schema";
+import { auditLogs, mediaAssets, userAvatars } from "../../db/schema";
 import { AppError } from "../../shared/middlewares/error-handler.middleware";
 import { getLogger } from "../../shared/logger";
-import {
-  processAvatarVariants,
-  uploadVariantsToOci,
-  recordAvatarInDatabase,
-  cleanupOldAvatarVersions,
-  compensateUploadedVariants,
-} from "./avatar.service";
 
 const logger = getLogger();
+
+const HEX_COLOR_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 export interface SaveAvatarPresetOptions {
   avatarId: number;
@@ -25,93 +16,74 @@ export interface SaveAvatarPresetOptions {
   userAgent?: string;
 }
 
-export const resolveAvatarPresetPath = (avatarId: number): string => {
-  if (!Number.isInteger(avatarId) || avatarId < 0 || avatarId > 83) {
-    throw new AppError(400, "avatarId debe ser un entero entre 0 y 83");
-  }
-
-  const candidates = [
-    path.resolve(process.cwd(), "assets", "avatars", `avatar-${avatarId}.png`),
-    path.resolve(process.cwd(), "..", "crm-media", "assets", "avatars", `avatar-${avatarId}.png`),
-    path.resolve(__dirname, "../../../assets/avatars", `avatar-${avatarId}.png`),
-    path.resolve(__dirname, "../../assets/avatars", `avatar-${avatarId}.png`),
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  throw new AppError(404, `Avatar preset ${avatarId} no encontrado en catálogo`);
-};
-
-export const composePresetAvatarBuffer = async (avatarId: number, color: string): Promise<Buffer> => {
-  const avatarPath = resolveAvatarPresetPath(avatarId);
-  const avatarBuffer = await fs.promises.readFile(avatarPath);
-
-  const resizedAvatar = await sharp(avatarBuffer)
-    .resize({ height: 500, fit: "inside" })
-    .toBuffer();
-
-  const avatarMeta = await sharp(resizedAvatar).metadata();
-  const left = Math.round((512 - (avatarMeta.width ?? 0)) / 2);
-  const top = 512 - (avatarMeta.height ?? 0);
-
-  return sharp({
-    create: {
-      width: 512,
-      height: 512,
-      channels: 4,
-      background: color,
-    },
-  })
-    .composite([{ input: resizedAvatar, left, top }])
-    .webp({ quality: 84 })
-    .toBuffer();
-};
+export function buildAvatarUrls(avatarId: number, color: string): Record<"64" | "256" | "512", string> {
+  const cleanColor = color.replace("#", "");
+  const base = `/avatars/avatar-${avatarId}.webp?c=${cleanColor}`;
+  return {
+    "64": base,
+    "256": base,
+    "512": base,
+  };
+}
 
 export const avatarPresetService = {
   saveAvatarPreset: async (userId: string, options: SaveAvatarPresetOptions) => {
     const { avatarId, color, actor, ipAddress, userAgent } = options;
 
-    const composedBuffer = await composePresetAvatarBuffer(avatarId, color);
+    if (!Number.isInteger(avatarId) || avatarId < 0 || avatarId > 83) {
+      throw new AppError(400, "avatarId debe ser un entero entre 0 y 83");
+    }
 
-    const latestVersion = await db
-      .select({ latest: sql<number>`coalesce(max(${mediaAssets.avatarVersion}), 0)` })
-      .from(mediaAssets)
-      .where(and(eq(mediaAssets.userId, userId), eq(mediaAssets.kind, "avatar")));
+    if (!HEX_COLOR_REGEX.test(color)) {
+      throw new AppError(400, "Color debe ser un código hexadecimal válido (ej: #86070c)");
+    }
 
-    const avatarVersion = (latestVersion[0]?.latest ?? 0) + 1;
-    const baseId = uuidv4();
-
-    const variants = await processAvatarVariants(composedBuffer, userId, avatarVersion, baseId);
-    const { uploaded, urls } = await uploadVariantsToOci(variants);
-
-    const storedOriginalName = `preset-${avatarId}-${color.replace("#", "")}.webp`;
-
-    try {
-      await recordAvatarInDatabase({
+    await db
+      .insert(userAvatars)
+      .values({
         userId,
-        avatarVersion,
-        storedOriginalName,
-        uploaded,
-        actor,
-        ipAddress,
-        userAgent,
+        avatarId,
+        color,
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: userAvatars.userId,
+        set: {
+          avatarId,
+          color,
+          updatedAt: new Date(),
+        },
       });
-    } catch (err) {
-      logger.error({ topic: "avatar", err, userId }, "Fallo persistencia avatar preset SQL; purgando OCI");
-      await compensateUploadedVariants(uploaded);
-      throw err;
+
+    // Purgar residuos de media_assets si existían avatares previos en OCI/DB
+    await db
+      .delete(mediaAssets)
+      .where(and(eq(mediaAssets.userId, userId), eq(mediaAssets.kind, "avatar")))
+      .catch((err) => {
+        logger.warn({ topic: "avatar", err, userId }, "No se pudo purgar media_assets residual de avatar");
+      });
+
+    if (actor) {
+      await db
+        .insert(auditLogs)
+        .values({
+          actorSub: actor.sub as any,
+          actorEmail: actor.email,
+          actorRole: actor.role,
+          action: "avatar.preset_selected",
+          resourceType: "avatar",
+          resourceId: userId,
+          ipAddress,
+          userAgent,
+          details: { avatarId, color },
+        })
+        .catch((err) => {
+          logger.warn({ topic: "avatar", err, userId }, "No se pudo registrar log de auditoría para avatar");
+        });
     }
 
-    try {
-      await cleanupOldAvatarVersions(userId, avatarVersion);
-    } catch (cleanupErr) {
-      logger.warn({ topic: "avatar", err: cleanupErr, userId }, "Limpieza asíncrona de avatares antiguos falló");
-    }
-
-    return { version: avatarVersion, urls };
+    const urls = buildAvatarUrls(avatarId, color);
+    return { version: 1, avatarId, color, urls };
   },
 };
