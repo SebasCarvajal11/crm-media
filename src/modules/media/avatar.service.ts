@@ -3,10 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { and, eq, sql, inArray } from "drizzle-orm";
 import { db } from "../../db/connection";
 import { mediaAssets } from "../../db/schema";
-import { AppError } from "../../shared/middlewares/error-handler.middleware";
-import { detectFileType, imageMimes } from "../../shared/security/file-validation";
 import { ociStorage } from "../../shared/storage/oci-storage";
-import { sanitizeStoredFileName } from "../../shared/sanitize-filename";
 import { getLogger } from "../../shared/logger";
 import { env } from "../../config/env";
 
@@ -42,14 +39,6 @@ export const cleanupOldAvatarVersions = async (userId: string, currentVersion: n
     );
 };
 
-export type UploadAvatarOptions = {
-  originalName: string;
-  rawBuffer: Buffer;
-  actor?: { userId: string; sub: string; role: string; email: string };
-  ipAddress?: string;
-  userAgent?: string;
-};
-
 interface ProcessedVariant {
   px: number;
   buffer: Buffer;
@@ -68,7 +57,7 @@ interface RecordAvatarParams {
   avatarVersion: number;
   storedOriginalName: string;
   uploaded: UploadedVariant[];
-  actor?: UploadAvatarOptions["actor"];
+  actor?: { userId: string; sub: string; role: string; email: string };
   ipAddress?: string;
   userAgent?: string;
 }
@@ -146,56 +135,6 @@ export const compensateUploadedVariants = async (uploaded: UploadedVariant[]): P
 };
 
 export const avatarService = {
-  uploadAvatar: async (userId: string, options: UploadAvatarOptions) => {
-    const { originalName, rawBuffer, actor, ipAddress, userAgent } = options;
-    const storedOriginalName = sanitizeStoredFileName(originalName);
-    const detected = await detectFileType(rawBuffer);
-    if (!detected || !imageMimes.has(detected.mime)) {
-      throw new AppError(400, "Archivo de imagen invalido");
-    }
-
-    // 1. Obtener última versión en lectura rápida no bloqueante
-    const latestVersion = await db
-      .select({ latest: sql<number>`coalesce(max(${mediaAssets.avatarVersion}), 0)` })
-      .from(mediaAssets)
-      .where(and(eq(mediaAssets.userId, userId), eq(mediaAssets.kind, "avatar")));
-
-    const avatarVersion = (latestVersion[0]?.latest ?? 0) + 1;
-    const baseId = uuidv4();
-
-    // 2. Procesamiento Sharp concurrente en memoria (sin conexión SQL retenida)
-    const variants = await processAvatarVariants(rawBuffer, userId, avatarVersion, baseId);
-
-    // 3. Subida concurrente WAN a OCI (sin conexión SQL retenida)
-    const { uploaded, urls } = await uploadVariantsToOci(variants);
-
-    // 4. Persistencia SQL ultra-corta (< 5ms) con rollback compensatorio en fallo
-    try {
-      await recordAvatarInDatabase({
-        userId,
-        avatarVersion,
-        storedOriginalName,
-        uploaded,
-        actor,
-        ipAddress,
-        userAgent,
-      });
-    } catch (err) {
-      logger.error({ topic: "avatar", err, userId }, "Fallo persistencia avatar SQL; purgando OCI");
-      await compensateUploadedVariants(uploaded);
-      throw err;
-    }
-
-    // 5. Limpieza post-commit de versiones antiguas fuera de la transacción
-    try {
-      await cleanupOldAvatarVersions(userId, avatarVersion);
-    } catch (cleanupErr) {
-      logger.warn({ topic: "avatar", err: cleanupErr, userId }, "Limpieza asíncrona de avatares antiguos falló");
-    }
-
-    return { version: avatarVersion, urls };
-  },
-
   getCurrentAvatar: async (userId: string) => {
     const latestVersion = await db
       .select({ latest: sql<number>`coalesce(max(${mediaAssets.avatarVersion}), 0)` })

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { AppError } from "../../shared/middlewares/error-handler.middleware";
 
 const mockUploadPublicAvatar = vi.fn().mockImplementation((key: string) => Promise.resolve(`https://cdn.cima.dev/${key}`));
 const mockDeleteObject = vi.fn().mockResolvedValue(undefined);
@@ -15,15 +14,6 @@ vi.mock("../../shared/storage/oci-storage", () => ({
   },
 }));
 
-vi.mock("../../shared/security/clamav", () => ({
-  scanBufferForVirus: vi.fn().mockResolvedValue(true),
-}));
-
-vi.mock("../../shared/security/file-validation", () => ({
-  detectFileType: vi.fn().mockResolvedValue({ mime: "image/png" }),
-  imageMimes: new Set(["image/jpeg", "image/png", "image/webp"]),
-}));
-
 vi.mock("sharp", () => {
   return {
     default: vi.fn().mockReturnValue({
@@ -35,9 +25,7 @@ vi.mock("sharp", () => {
 });
 
 const mockSelect = vi.fn();
-const mockInsert = vi.fn();
 const mockDelete = vi.fn();
-const mockExecute = vi.fn();
 const mockTransaction = vi.fn();
 
 vi.mock("../../db/connection", () => ({
@@ -48,80 +36,106 @@ vi.mock("../../db/connection", () => ({
   },
 }));
 
-import { avatarService } from "./avatar.service";
+import {
+  avatarService,
+  processAvatarVariants,
+  uploadVariantsToOci,
+} from "./avatar.service";
 
-describe("avatarService - two-phase persistence & resilience", () => {
+describe("avatarService - consultas de avatares y procesamiento de variantes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("rejects non-image mime types with AppError 400", async () => {
-    const { detectFileType } = await import("../../shared/security/file-validation");
-    vi.mocked(detectFileType).mockResolvedValueOnce({ mime: "application/pdf" } as any);
+  describe("getCurrentAvatar", () => {
+    it("returns version 0 when user has no avatar", async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([{ latest: 0 }]),
+        }),
+      });
 
-    await expect(
-      avatarService.uploadAvatar("user-1", {
-        originalName: "doc.pdf",
-        rawBuffer: Buffer.from("pdf-data"),
-      })
-    ).rejects.toThrow(AppError);
+      const result = await avatarService.getCurrentAvatar("user-empty");
+      expect(result.version).toBe(0);
+      expect(result.urls).toEqual({});
+    });
+
+    it("returns active version and mapped urls when user has avatar", async () => {
+      mockSelect
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([{ latest: 3 }]),
+          }),
+        })
+        .mockReturnValueOnce({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([
+              { objectKey: "avatars/u1/v3/uuid_64.webp" },
+              { objectKey: "avatars/u1/v3/uuid_256.webp" },
+              { objectKey: "avatars/u1/v3/uuid_512.webp" },
+            ]),
+          }),
+        });
+
+      const result = await avatarService.getCurrentAvatar("u1");
+      expect(result.version).toBe(3);
+      expect(result.urls["64"]).toBe("https://cdn.cima.dev/avatars/u1/v3/uuid_64.webp");
+      expect(result.urls["256"]).toBe("https://cdn.cima.dev/avatars/u1/v3/uuid_256.webp");
+      expect(result.urls["512"]).toBe("https://cdn.cima.dev/avatars/u1/v3/uuid_512.webp");
+    });
   });
 
-  it("uploads variants to OCI before DB and commits without holding long transaction", async () => {
-    mockSelect.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ latest: 1 }]),
-      }),
+  describe("getCurrentAvatarsByUsers", () => {
+    it("returns empty items when given empty userIds", async () => {
+      const result = await avatarService.getCurrentAvatarsByUsers([]);
+      expect(result).toEqual({ items: {} });
     });
 
-    const mockTx = {
-      execute: mockExecute.mockResolvedValue(undefined),
-      insert: vi.fn().mockReturnValue({
-        values: mockInsert.mockResolvedValue(undefined),
-      }),
-    };
-    mockTransaction.mockImplementation(async (callback: any) => callback(mockTx));
+    it("returns avatars grouped by userId for multiple users", async () => {
+      mockSelect.mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([
+            { userId: "u1", avatarVersion: 2, objectKey: "avatars/u1/v2/a_64.webp" },
+            { userId: "u1", avatarVersion: 2, objectKey: "avatars/u1/v2/a_512.webp" },
+            { userId: "u2", avatarVersion: 1, objectKey: "avatars/u2/v1/b_256.webp" },
+          ]),
+        }),
+      });
 
-    const result = await avatarService.uploadAvatar("user-123", {
-      originalName: "avatar.png",
-      rawBuffer: Buffer.from("valid-png-bytes"),
+      const result = await avatarService.getCurrentAvatarsByUsers(["u1", "u2"]);
+      expect(result.items["u1"]).toBeDefined();
+      expect(result.items["u1"].version).toBe(2);
+      expect(result.items["u1"].urls["64"]).toBe("https://cdn.cima.dev/avatars/u1/v2/a_64.webp");
+      expect(result.items["u1"].urls["512"]).toBe("https://cdn.cima.dev/avatars/u1/v2/a_512.webp");
+
+      expect(result.items["u2"]).toBeDefined();
+      expect(result.items["u2"].version).toBe(1);
+      expect(result.items["u2"].urls["256"]).toBe("https://cdn.cima.dev/avatars/u2/v1/b_256.webp");
     });
-
-    expect(result.version).toBe(2);
-    expect(mockUploadPublicAvatar).toHaveBeenCalledTimes(3);
-    expect(mockTransaction).toHaveBeenCalledTimes(1);
-    expect(mockDeleteObject).not.toHaveBeenCalled();
   });
 
-  it("triggers compensatory rollback purging OCI objects if SQL transaction fails", async () => {
-    mockSelect.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ latest: 0 }]),
-      }),
+  describe("variant processing helpers", () => {
+    it("processes 3 variants with correct dimensions and keys", async () => {
+      const variants = await processAvatarVariants(
+        Buffer.from("raw-bytes"),
+        "user-1",
+        2,
+        "uuid-base"
+      );
+      expect(variants).toHaveLength(3);
+      expect(variants.map((v) => v.px)).toEqual([512, 256, 64]);
+      expect(variants[0].key).toBe("avatars/user-1/v2/uuid-base_512.webp");
     });
 
-    mockTransaction.mockRejectedValue(new Error("Database connection severed"));
-
-    await expect(
-      avatarService.uploadAvatar("user-err", {
-        originalName: "avatar.png",
-        rawBuffer: Buffer.from("valid-png-bytes"),
-      })
-    ).rejects.toThrow("Database connection severed");
-
-    expect(mockUploadPublicAvatar).toHaveBeenCalledTimes(3);
-    expect(mockDeleteObject).toHaveBeenCalledTimes(3);
-  });
-
-  it("returns version 0 when user has no avatar", async () => {
-    mockSelect.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ latest: 0 }]),
-      }),
+    it("uploads variants to OCI and returns mapped urls", async () => {
+      const variants = [
+        { px: 512, buffer: Buffer.from("v512"), key: "key_512.webp" },
+        { px: 64, buffer: Buffer.from("v64"), key: "key_64.webp" },
+      ];
+      const res = await uploadVariantsToOci(variants);
+      expect(mockUploadPublicAvatar).toHaveBeenCalledTimes(2);
+      expect(res.urls["512"]).toBe("https://cdn.cima.dev/key_512.webp");
+      expect(res.urls["64"]).toBe("https://cdn.cima.dev/key_64.webp");
     });
-
-    const result = await avatarService.getCurrentAvatar("user-empty");
-    expect(result.version).toBe(0);
-    expect(result.urls).toEqual({});
   });
 });

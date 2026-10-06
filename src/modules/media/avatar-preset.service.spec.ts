@@ -84,6 +84,26 @@ describe("avatarPresetService & 410 Deprecation", () => {
     expect(mockTransaction).toHaveBeenCalledTimes(1);
   });
 
+  it("triggers compensatory rollback purging OCI objects if SQL transaction fails during preset saving", async () => {
+    mockSelect.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([{ latest: 0 }]),
+      }),
+    });
+
+    mockTransaction.mockRejectedValue(new Error("Database connection severed"));
+
+    await expect(
+      avatarPresetService.saveAvatarPreset("user-err", {
+        avatarId: 10,
+        color: "#86070c",
+      })
+    ).rejects.toThrow("Database connection severed");
+
+    expect(mockUploadPublicAvatar).toHaveBeenCalledTimes(3);
+    expect(mockDeleteObject).toHaveBeenCalledTimes(3);
+  });
+
   it("mediaController.uploadAvatar returns 410 Gone (manual upload deprecated)", async () => {
     await expect(mediaController.uploadAvatar(new Request("http://localhost"), {})).rejects.toMatchObject({
       statusCode: 410,

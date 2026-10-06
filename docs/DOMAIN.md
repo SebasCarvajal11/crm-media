@@ -6,19 +6,20 @@ Este documento describe las entidades de negocio, el ciclo de vida de los activo
 
 ## 1. Dominio de Medios: Avatares
 
-El avatar representa la imagen pública de perfil del usuario dentro de la plataforma.
+El avatar representa la imagen pública oficial de perfil del usuario dentro de la plataforma.
 
 ```text
-[ Subida Multipart ] ──► [ Validación Magic Number ] ──► [ Escaneo ClamAV ]
-                                                                 │
-[ Entrega URL ] ◄── [ Inserción Metadata ] ◄── [ Redimensionamiento Sharp ]
+[ Selección Catálogo (0-83) + Color ] ──► [ Carga Asset Oficial ] ──► [ Composición Sharp (512x512) ]
+                                                                                  │
+[ Entrega URLs Variantes ] ◄── [ Inserción Metadatos ] ◄── [ Carga OCI (64, 256, 512) ]
 ```
 
 ### Reglas de Negocio para Avatares
-1. **Unicidad y Versionado**: Cada usuario posee un único avatar activo. Al subir uno nuevo, se incrementa `avatarVersion` para romper de forma determinista el caché en los navegadores cliente.
-2. **Validación Antivirus Síncrona**: Al ser un archivo de bajo peso ($\le 5$ MB), el flujo HTTP valida los *magic numbers* reales con `file-type` y ejecuta un escaneo síncrono con ClamAV antes de procesarlo.
-3. **Procesamiento de Imagen**: Se recorta al centro en relación de aspecto 1:1, se redimensiona a dimensiones estándar y se optimiza para entrega web rápida.
-4. **Consulta Masiva**: El endpoint `GET /api/v1/media/avatars/users?ids=u1,u2` permite a las vistas de equipo y tableros resolver múltiples avatares en un solo viaje HTTP.
+1. **Catálogo Oficial CIMA y Marca Unificada**: La plataforma utiliza un catálogo curado de 84 avatares institucionales con selección de color de fondo corporativo mediante `POST /api/v1/media/avatars/preset`. La subida manual libre de archivos binarios queda permanentemente deshabilitada (410 Gone) para salvaguardar la coherencia de marca, prevenir cuellos de botella de red y erradicar vectores de ataque por carga de binarios.
+2. **Unicidad y Versionado**: Cada usuario posee un único avatar activo. Al asignar un nuevo preset, se incrementa `avatarVersion` para invalidar de forma determinista el caché en los navegadores cliente.
+3. **Composición y Optimización de Imagen**: El avatar seleccionado se compone server-side con Sharp sobre un fondo con el color corporativo elegido, exportándose a tres variantes WebP optimizadas: 64px, 256px y 512px.
+4. **Resiliencia de Dos Fases y Rollback Compensatorio**: Las variantes se suben a OCI antes de abrir la transacción SQL ultra-corta. Si la base de datos falla, se activa una compensación automática que purga los objetos en OCI.
+5. **Consulta Masiva**: El endpoint `GET /api/v1/media/avatars/users?ids=u1,u2` permite a las vistas de equipo y tableros resolver múltiples avatares en un solo viaje HTTP.
 
 ---
 

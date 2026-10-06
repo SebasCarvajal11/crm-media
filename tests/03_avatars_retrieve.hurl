@@ -31,17 +31,23 @@ HTTP 200
 worker_token: jsonpath "$.data.access_token"
 worker_id: jsonpath "$.data.user.id"
 
-# Primero subir avatares para tener datos
-POST {{base_url}}/api/v1/media/avatars
+# Primero asignar avatares preset para tener datos
+POST {{base_url}}/api/v1/media/avatars/preset
 Authorization: Bearer {{admin_token}}
-[MultipartFormData]
-file: file,test-files/test-image.png; image/png
+Content-Type: application/json
+{
+  "avatarId": 1,
+  "color": "#86070c"
+}
 HTTP 201
 
-POST {{base_url}}/api/v1/media/avatars
+POST {{base_url}}/api/v1/media/avatars/preset
 Authorization: Bearer {{worker_token}}
-[MultipartFormData]
-file: file,test-files/test-image.png; image/png
+Content-Type: application/json
+{
+  "avatarId": 2,
+  "color": "#047857"
+}
 HTTP 201
 
 # --- Admin: Obtiene su propio avatar ---
