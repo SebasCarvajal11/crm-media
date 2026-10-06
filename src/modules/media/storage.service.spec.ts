@@ -46,4 +46,13 @@ describe("storageService", () => {
     expect(third).toBeDefined();
     expect(third.cloudStorage.quotaBytes).toBe(10 * 1024 * 1024 * 1024);
   });
+
+  it("executes getCloudStorageStats without ReferenceError and sets avatars to 0", async () => {
+    const stats = await storageService.getCloudStorageStats();
+    expect(stats).toBeDefined();
+    expect(stats.avatarsCount).toBe(0);
+    expect(stats.avatarsBytes).toBe(0);
+    expect(typeof stats.usedBytes).toBe("number");
+    expect(typeof stats.quotaBytes).toBe("number");
+  });
 });

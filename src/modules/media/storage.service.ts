@@ -1,5 +1,5 @@
 import { statfs } from "node:fs/promises";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "../../db/connection";
 import { mediaAssets } from "../../db/schema";
 import { env } from "../../config/env";
