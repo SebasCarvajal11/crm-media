@@ -27,12 +27,18 @@ mediaRoutes.post(
 );
 
 mediaRoutes.get("/avatars/current", async (c) => {
+  const isTiered = c.req.query("tiered") === "true";
   const { userId, sub } = c.get("user");
-  const payload = await mediaController.getCurrentAvatar(sub || userId, userId);
+  const payload = await mediaController.getCurrentAvatar(
+    sub || userId,
+    userId,
+    { tiered: isTiered }
+  );
   return c.json(payload);
 });
 
 mediaRoutes.get("/avatars/users", async (c) => {
+  const isTiered = c.req.query("tiered") === "true";
   const queryList = c.req.queries("ids") ?? [];
   const singleQuery = c.req.query("ids");
   const rawList = queryList.length > 0 ? queryList : (singleQuery ? [singleQuery] : []);
@@ -53,7 +59,10 @@ mediaRoutes.get("/avatars/users", async (c) => {
   const validUuids = uniqueTokens.filter((id) => UUID_PATTERN.test(id));
   const nonUuids = uniqueTokens.filter((id) => !UUID_PATTERN.test(id));
 
-  const { data } = await mediaController.getCurrentAvatarsByUsers(validUuids);
+  const { data } = await mediaController.getCurrentAvatarsByUsers(
+    validUuids,
+    { tiered: isTiered }
+  );
   const items = data.items;
 
   for (const token of nonUuids) {
@@ -62,7 +71,7 @@ mediaRoutes.get("/avatars/users", async (c) => {
       version: 1,
       avatarId: fallback.avatarId,
       color: fallback.color,
-      urls: buildAvatarUrls(fallback.avatarId, fallback.color),
+      urls: buildAvatarUrls(fallback.avatarId, fallback.color, { tiered: isTiered }),
     };
   }
 

@@ -108,12 +108,19 @@ export const mediaController = {
     const data = await documentService.deleteDocument(user, objectKey, { ipAddress, userAgent });
     return { data };
   },
-  getCurrentAvatar: async (userId: string, fallbackId?: string) => {
-    const data = await avatarService.getCurrentAvatar(userId, fallbackId);
+  getCurrentAvatar: async (
+    userId: string,
+    fallbackId?: string,
+    options?: { tiered?: boolean }
+  ) => {
+    const data = await avatarService.getCurrentAvatar(userId, fallbackId, options);
     return { data };
   },
-  getCurrentAvatarsByUsers: async (userIds: string[]) => {
-    const data = await avatarService.getCurrentAvatarsByUsers(userIds);
+  getCurrentAvatarsByUsers: async (
+    userIds: string[],
+    options?: { tiered?: boolean }
+  ) => {
+    const data = await avatarService.getCurrentAvatarsByUsers(userIds, options);
     return { data };
   },
   getStorageStats: async (forceRefresh = false) => {

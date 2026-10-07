@@ -17,7 +17,7 @@ El avatar representa la imagen pública oficial de perfil del usuario dentro de 
 ### Reglas de Negocio para Avatares
 1. **Catálogo Oficial CIMA y Marca Unificada**: La plataforma utiliza un catálogo curado de 84 avatares institucionales (0..83) con paleta de 12 colores corporativos CIMA mediante `POST /api/v1/media/avatars/preset`.
 2. **Garantía Zero-Null**: Ningún usuario carece de avatar. Ante eventos `user.registered` se asigna automáticamente de forma persistida e idempotente; ante consultas de usuarios no persistidos se computa un fallback determinista universal.
-3. **Entrega Estática de Alto Rendimiento**: Los avatares se resuelven como URLs `/avatars/avatar-{id}.webp?c={color}` sin sobrecosto de subida o procesamiento en storage de nube.
+3. **Entrega Estática de Alto Rendimiento con Mipmaps**: Los avatares se resuelven como URLs `/avatars/avatar-{id}.webp?c={color}` o con sufijos escalonados de resolución (`-64`, `-256`, `-512`, `-1024` tanto en WebP como en PNG) para pantallas de alta densidad (Retina, 2K y 4K UHD), procesados con antialiasing subpíxel analógico (256 niveles de alpha) y encuadre cuadrado 1:1 con margen superior de seguridad del 8-10% sin sobrecosto de CPU o storage en la nube.
 4. **Consulta Masiva Tolerante**: El endpoint `GET /api/v1/media/avatars/users?ids=...` permite resolver lotes de hasta 100 identificadores admitiendo listas heterogéneas sin abortar.
 
 ---

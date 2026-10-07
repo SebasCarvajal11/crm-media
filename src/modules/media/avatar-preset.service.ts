@@ -16,13 +16,28 @@ export interface SaveAvatarPresetOptions {
   userAgent?: string;
 }
 
-export function buildAvatarUrls(avatarId: number, color: string): Record<"64" | "256" | "512", string> {
+export type AvatarResolutionKey = "64" | "256" | "512" | "1024";
+
+export function buildAvatarUrls(
+  avatarId: number,
+  color: string,
+  options?: { tiered?: boolean }
+): Record<AvatarResolutionKey, string> {
   const cleanColor = color.replace("#", "");
+  if (options?.tiered) {
+    return {
+      "64": `/avatars/avatar-${avatarId}-64.webp?c=${cleanColor}`,
+      "256": `/avatars/avatar-${avatarId}-256.webp?c=${cleanColor}`,
+      "512": `/avatars/avatar-${avatarId}-512.webp?c=${cleanColor}`,
+      "1024": `/avatars/avatar-${avatarId}-1024.webp?c=${cleanColor}`,
+    };
+  }
   const base = `/avatars/avatar-${avatarId}.webp?c=${cleanColor}`;
   return {
     "64": base,
     "256": base,
     "512": base,
+    "1024": base,
   };
 }
 

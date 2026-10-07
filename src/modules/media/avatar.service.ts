@@ -8,11 +8,15 @@ export interface AvatarDto {
   version: number;
   avatarId: number;
   color: string;
-  urls: Record<"64" | "256" | "512", string> | Record<string, string>;
+  urls: Record<"64" | "256" | "512" | "1024", string> | Record<string, string>;
 }
 
 export const avatarService = {
-  getCurrentAvatar: async (userId: string, fallbackId?: string): Promise<AvatarDto> => {
+  getCurrentAvatar: async (
+    userId: string,
+    fallbackId?: string,
+    options?: { tiered?: boolean }
+  ): Promise<AvatarDto> => {
     const ids = Array.from(new Set([userId, fallbackId].filter(Boolean) as string[]));
     const rows = ids.length > 0
       ? await db
@@ -32,11 +36,11 @@ export const avatarService = {
         version: 1,
         avatarId: fallback.avatarId,
         color: fallback.color,
-        urls: buildAvatarUrls(fallback.avatarId, fallback.color),
+        urls: buildAvatarUrls(fallback.avatarId, fallback.color, options),
       };
     }
 
-    const urls = buildAvatarUrls(row.avatarId, row.color);
+    const urls = buildAvatarUrls(row.avatarId, row.color, options);
     return {
       version: 1,
       avatarId: row.avatarId,
@@ -46,7 +50,8 @@ export const avatarService = {
   },
 
   getCurrentAvatarsByUsers: async (
-    userIds: string[]
+    userIds: string[],
+    options?: { tiered?: boolean }
   ): Promise<{ items: Record<string, AvatarDto> }> => {
     const uniqueUserIds = Array.from(new Set(userIds.filter(Boolean)));
     if (uniqueUserIds.length === 0) {
@@ -68,7 +73,7 @@ export const avatarService = {
         version: 1,
         avatarId: row.avatarId,
         color: row.color,
-        urls: buildAvatarUrls(row.avatarId, row.color),
+        urls: buildAvatarUrls(row.avatarId, row.color, options),
       };
     }
 
@@ -79,7 +84,7 @@ export const avatarService = {
           version: 1,
           avatarId: fallback.avatarId,
           color: fallback.color,
-          urls: buildAvatarUrls(fallback.avatarId, fallback.color),
+          urls: buildAvatarUrls(fallback.avatarId, fallback.color, options),
         };
       }
     }

@@ -18,11 +18,18 @@ describe("avatarPresetService", () => {
     vi.clearAllMocks();
   });
 
-  it("buildAvatarUrls generates correct 64/256/512 static webp urls with query param color", () => {
+  it("buildAvatarUrls generates correct 64/256/512/1024 static webp urls with query param color", () => {
     const urls = buildAvatarUrls(5, "#86070c");
     expect(urls["64"]).toBe("/avatars/avatar-5.webp?c=86070c");
     expect(urls["256"]).toBe("/avatars/avatar-5.webp?c=86070c");
     expect(urls["512"]).toBe("/avatars/avatar-5.webp?c=86070c");
+    expect(urls["1024"]).toBe("/avatars/avatar-5.webp?c=86070c");
+
+    const tieredUrls = buildAvatarUrls(5, "#86070c", { tiered: true });
+    expect(tieredUrls["64"]).toBe("/avatars/avatar-5-64.webp?c=86070c");
+    expect(tieredUrls["256"]).toBe("/avatars/avatar-5-256.webp?c=86070c");
+    expect(tieredUrls["512"]).toBe("/avatars/avatar-5-512.webp?c=86070c");
+    expect(tieredUrls["1024"]).toBe("/avatars/avatar-5-1024.webp?c=86070c");
   });
 
   it("rejects invalid avatarId < 0 or > 83 with AppError 400", async () => {
@@ -53,6 +60,7 @@ describe("avatarPresetService", () => {
     expect(result.color).toBe("#86070c");
     expect(result.version).toBe(1);
     expect(result.urls["64"]).toBe("/avatars/avatar-10.webp?c=86070c");
+    expect(result.urls["1024"]).toBe("/avatars/avatar-10.webp?c=86070c");
     expect(mockInsert).toHaveBeenCalledTimes(1);
     expect(mockDelete).toHaveBeenCalledTimes(1);
   });

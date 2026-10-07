@@ -101,7 +101,7 @@ describe("migrate-user-avatars", () => {
         version: 1,
         avatarId: 0,
         color: "#86070c",
-        urls: { "512": "url-512", "256": "url-256", "64": "url-64" },
+        urls: { "1024": "url-1024", "512": "url-512", "256": "url-256", "64": "url-64" },
       });
 
       const mockUsers: UserRecord[] = [
@@ -121,7 +121,7 @@ describe("migrate-user-avatars", () => {
           version: 1,
           avatarId: 0,
           color: "#86070c",
-          urls: { "512": "url-512", "256": "url-256", "64": "url-64" },
+          urls: { "1024": "url-1024", "512": "url-512", "256": "url-256", "64": "url-64" },
         })
         .mockRejectedValueOnce(new Error("OCI network error"));
 

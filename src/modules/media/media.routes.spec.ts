@@ -86,4 +86,30 @@ describe("mediaRoutes - Avatars routing & sanitization", () => {
     const res = await mediaRoutes.request("/avatars", { method: "POST" });
     expect(res.status).toBe(404);
   });
+
+  it("GET /avatars/users with tiered=true returns differentiated mipmap URLs", async () => {
+    mockSelect.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([
+          {
+            userId: "a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d",
+            avatarId: 5,
+            color: "#86070c",
+          },
+        ]),
+      }),
+    });
+
+    const res = await mediaRoutes.request(
+      "/avatars/users?ids=a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d&tiered=true"
+    );
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    const urls = body.data.items["a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d"].urls;
+    expect(urls["64"]).toBe("/avatars/avatar-5-64.webp?c=86070c");
+    expect(urls["256"]).toBe("/avatars/avatar-5-256.webp?c=86070c");
+    expect(urls["512"]).toBe("/avatars/avatar-5-512.webp?c=86070c");
+    expect(urls["1024"]).toBe("/avatars/avatar-5-1024.webp?c=86070c");
+  });
 });
