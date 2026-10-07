@@ -31,10 +31,12 @@ export interface UserRecord extends Record<string, unknown> {
 export interface MigrateAvatarsOptions {
   dryRun?: boolean;
   users?: UserRecord[];
+  syncAll?: boolean;
 }
 
 export interface MigrationPlanItem {
   userId: string;
+  subject?: string;
   email: string;
   avatarId: number;
   color: string;
@@ -55,7 +57,8 @@ export function generateMigrationPlan(users: UserRecord[]): MigrationPlanItem[] 
   return users.map((user, index) => {
     const { avatarId, color } = getDeterministicAvatarAssignment(index);
     return {
-      userId: (user.subject || user.id) as string,
+      userId: user.id,
+      subject: user.subject || undefined,
       email: user.email,
       avatarId,
       color,
@@ -80,7 +83,7 @@ export async function purgeResidualMediaAvatars(): Promise<number> {
   }
 }
 
-async function fetchPendingUsers(): Promise<UserRecord[]> {
+async function fetchPendingUsers(syncAll = false): Promise<UserRecord[]> {
   const superuserUrl = process.env.DB_SUPERUSER_URL;
   let targetDb = db;
   let superuserPool: import("pg").Pool | null = null;
@@ -93,15 +96,22 @@ async function fetchPendingUsers(): Promise<UserRecord[]> {
   }
 
   try {
-    const queryResult = await targetDb.execute<UserRecord>(sql`
-      SELECT u.id, u.subject, u.email, u.first_name, u.last_name
-      FROM schema_auth.users u
-      WHERE NOT EXISTS (
-        SELECT 1 FROM schema_media.user_avatars a
-        WHERE a.user_id = u.subject::text
-      )
-      ORDER BY u.created_at ASC
-    `);
+    const query = syncAll
+      ? sql`
+          SELECT u.id, u.subject, u.email, u.first_name, u.last_name
+          FROM schema_auth.users u
+          ORDER BY u.created_at ASC
+        `
+      : sql`
+          SELECT u.id, u.subject, u.email, u.first_name, u.last_name
+          FROM schema_auth.users u
+          WHERE NOT EXISTS (
+            SELECT 1 FROM schema_media.user_avatars a
+            WHERE a.user_id = u.subject::text OR a.user_id = u.id::text
+          )
+          ORDER BY u.created_at ASC
+        `;
+    const queryResult = await targetDb.execute<UserRecord>(query);
     return (queryResult.rows ?? []) as UserRecord[];
   } finally {
     if (superuserPool) {
@@ -117,9 +127,9 @@ async function applyMigrationItem(item: MigrationPlanItem): Promise<boolean> {
       color: item.color,
       actor: {
         userId: item.userId,
-        sub: item.userId,
+        sub: item.subject || item.userId,
         role: "admin",
-        email: "migration-system@cima.dev",
+        email: item.email || "migration-system@cima.dev",
       },
       userAgent: "crm-migration-script/1.0",
     });
@@ -152,7 +162,7 @@ export async function migrateUserAvatars(
   let users = options.users;
   if (!users) {
     try {
-      users = await fetchPendingUsers();
+      users = await fetchPendingUsers(options.syncAll);
     } catch (dbErr) {
       if (options.dryRun) {
         console.warn("Base de datos no accesible en entorno local; utilizando usuarios de muestra para dry-run.");
@@ -162,7 +172,7 @@ export async function migrateUserAvatars(
       }
     }
   }
-  console.log(`Usuarios encontrados sin avatar: ${users.length}`);
+  console.log(`Usuarios seleccionados para migración: ${users.length}`);
 
   const plan = generateMigrationPlan(users);
 
@@ -200,7 +210,8 @@ const isMain = Boolean(
 
 if (isMain) {
   const isDryRun = process.argv.includes("--dry-run");
-  migrateUserAvatars({ dryRun: isDryRun })
+  const isSyncAll = process.argv.includes("--all") || process.argv.includes("--force");
+  migrateUserAvatars({ dryRun: isDryRun, syncAll: isSyncAll })
     .then(() => process.exit(0))
     .catch((err) => {
       console.error("Fallo crítico en migración:", err);

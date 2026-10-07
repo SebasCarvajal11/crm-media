@@ -17,7 +17,7 @@
       "col": 0,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 0,
       "y": 0,
@@ -56,7 +56,7 @@
       "col": 3,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 1536,
       "y": 0,
@@ -69,7 +69,7 @@
       "col": 4,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 2048,
       "y": 0,
@@ -82,7 +82,7 @@
       "col": 5,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 2560,
       "y": 0,
@@ -95,7 +95,7 @@
       "col": 6,
       "categories": [
         "todos",
-        "casual"
+        "formal"
       ],
       "x": 3072,
       "y": 0,
@@ -121,7 +121,7 @@
       "col": 8,
       "categories": [
         "todos",
-        "casual"
+        "formal"
       ],
       "x": 4096,
       "y": 0,
@@ -134,8 +134,8 @@
       "col": 9,
       "categories": [
         "todos",
-        "con-gafas",
-        "formal"
+        "casual",
+        "con-gafas"
       ],
       "x": 4608,
       "y": 0,
@@ -161,8 +161,8 @@
       "col": 11,
       "categories": [
         "todos",
-        "con-gafas",
-        "formal"
+        "formal",
+        "con-gafas"
       ],
       "x": 5632,
       "y": 0,
@@ -188,7 +188,7 @@
       "col": 1,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 512,
       "y": 512,
@@ -201,7 +201,7 @@
       "col": 2,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 1024,
       "y": 512,
@@ -253,8 +253,8 @@
       "col": 6,
       "categories": [
         "todos",
-        "con-gafas",
-        "formal"
+        "casual",
+        "con-gafas"
       ],
       "x": 3072,
       "y": 512,
@@ -267,7 +267,7 @@
       "col": 7,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 3584,
       "y": 512,
@@ -280,7 +280,7 @@
       "col": 8,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 4096,
       "y": 512,
@@ -293,7 +293,7 @@
       "col": 9,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 4608,
       "y": 512,
@@ -306,7 +306,7 @@
       "col": 10,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 5120,
       "y": 512,
@@ -319,7 +319,7 @@
       "col": 11,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 5632,
       "y": 512,
@@ -332,7 +332,7 @@
       "col": 0,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 0,
       "y": 1024,
@@ -345,7 +345,7 @@
       "col": 1,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 512,
       "y": 1024,
@@ -371,8 +371,8 @@
       "col": 3,
       "categories": [
         "todos",
-        "con-gafas",
-        "formal"
+        "casual",
+        "con-gafas"
       ],
       "x": 1536,
       "y": 1024,
@@ -398,8 +398,8 @@
       "col": 5,
       "categories": [
         "todos",
-        "con-gafas",
-        "formal"
+        "formal",
+        "con-gafas"
       ],
       "x": 2560,
       "y": 1024,
@@ -438,7 +438,7 @@
       "col": 8,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 4096,
       "y": 1024,
@@ -490,7 +490,7 @@
       "col": 0,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 0,
       "y": 1536,
@@ -503,7 +503,7 @@
       "col": 1,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 512,
       "y": 1536,
@@ -529,7 +529,7 @@
       "col": 3,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 1536,
       "y": 1536,
@@ -555,7 +555,8 @@
       "col": 5,
       "categories": [
         "todos",
-        "formal"
+        "formal",
+        "con-gafas"
       ],
       "x": 2560,
       "y": 1536,
@@ -568,7 +569,7 @@
       "col": 6,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 3072,
       "y": 1536,
@@ -594,8 +595,8 @@
       "col": 8,
       "categories": [
         "todos",
-        "con-gafas",
-        "formal"
+        "formal",
+        "con-gafas"
       ],
       "x": 4096,
       "y": 1536,
@@ -608,7 +609,7 @@
       "col": 9,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 4608,
       "y": 1536,
@@ -621,7 +622,7 @@
       "col": 10,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 5120,
       "y": 1536,
@@ -634,8 +635,8 @@
       "col": 11,
       "categories": [
         "todos",
-        "con-gafas",
-        "formal"
+        "formal",
+        "con-gafas"
       ],
       "x": 5632,
       "y": 1536,
@@ -648,8 +649,8 @@
       "col": 0,
       "categories": [
         "todos",
-        "con-gafas",
-        "formal"
+        "casual",
+        "con-gafas"
       ],
       "x": 0,
       "y": 2048,
@@ -662,7 +663,7 @@
       "col": 1,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 512,
       "y": 2048,
@@ -675,7 +676,7 @@
       "col": 2,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 1024,
       "y": 2048,
@@ -701,7 +702,7 @@
       "col": 4,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 2048,
       "y": 2048,
@@ -714,7 +715,7 @@
       "col": 5,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 2560,
       "y": 2048,
@@ -740,7 +741,7 @@
       "col": 7,
       "categories": [
         "todos",
-        "casual"
+        "formal"
       ],
       "x": 3584,
       "y": 2048,
@@ -766,7 +767,7 @@
       "col": 9,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 4608,
       "y": 2048,
@@ -779,7 +780,7 @@
       "col": 10,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 5120,
       "y": 2048,
@@ -805,7 +806,7 @@
       "col": 0,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 0,
       "y": 2560,
@@ -818,8 +819,8 @@
       "col": 1,
       "categories": [
         "todos",
-        "con-gafas",
-        "formal"
+        "casual",
+        "con-gafas"
       ],
       "x": 512,
       "y": 2560,
@@ -832,7 +833,7 @@
       "col": 2,
       "categories": [
         "todos",
-        "casual"
+        "formal"
       ],
       "x": 1024,
       "y": 2560,
@@ -845,7 +846,7 @@
       "col": 3,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 1536,
       "y": 2560,
@@ -858,7 +859,7 @@
       "col": 4,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 2048,
       "y": 2560,
@@ -884,8 +885,8 @@
       "col": 6,
       "categories": [
         "todos",
-        "con-gafas",
-        "formal"
+        "formal",
+        "con-gafas"
       ],
       "x": 3072,
       "y": 2560,
@@ -937,7 +938,7 @@
       "col": 10,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 5120,
       "y": 2560,
@@ -963,7 +964,7 @@
       "col": 0,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 0,
       "y": 3072,
@@ -1015,7 +1016,7 @@
       "col": 4,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 2048,
       "y": 3072,
@@ -1028,7 +1029,7 @@
       "col": 5,
       "categories": [
         "todos",
-        "casual"
+        "formal"
       ],
       "x": 2560,
       "y": 3072,
@@ -1054,7 +1055,8 @@
       "col": 7,
       "categories": [
         "todos",
-        "formal"
+        "casual",
+        "con-gafas"
       ],
       "x": 3584,
       "y": 3072,
@@ -1067,7 +1069,7 @@
       "col": 8,
       "categories": [
         "todos",
-        "formal"
+        "casual"
       ],
       "x": 4096,
       "y": 3072,
@@ -1093,7 +1095,8 @@
       "col": 10,
       "categories": [
         "todos",
-        "formal"
+        "casual",
+        "con-gafas"
       ],
       "x": 5120,
       "y": 3072,
@@ -1106,7 +1109,8 @@
       "col": 11,
       "categories": [
         "todos",
-        "formal"
+        "formal",
+        "con-gafas"
       ],
       "x": 5632,
       "y": 3072,
