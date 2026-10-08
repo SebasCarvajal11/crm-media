@@ -25,6 +25,7 @@
     "gateway:validate": "tsx scripts/validate-manifest.mjs",
     "test:contract": "hurl --test --variable base_url=http://localhost:28080 --variable WORKER_EMAIL=ana.martinez@cima.dev --variable WORKER_PASSWORD=Demo123! tests/01_media_gateway.hurl",
     "test:unit": "vitest run",
+    "test:env:setup": "node scripts/setup-test-env.mjs",
     "typecheck": "tsc --noEmit",
     "preinstall": "pnpm dlx only-allow pnpm"
   },
